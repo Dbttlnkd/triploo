@@ -1,0 +1,395 @@
+/* ============================================================
+   VERGE DESIGN SYSTEM — Tokens
+   ============================================================
+   All colors, type, spacing, radii, and motion variables.
+   Substitutions are flagged inline. Open-source Google Fonts
+   replace the proprietary Manuka/PolySans/FK Roman families.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  /* ============== COLORS ============== */
+
+  /* Primary brand hazards */
+  --jelly-mint: #3cffd0;
+  --verge-ultraviolet: #5200ff;
+
+  /* Secondary & accent */
+  --console-mint-border: #309875;
+  --deep-link-blue: #3860be;
+  --focus-cyan: #1eaedb;
+  --purple-rule: #3d00bf;
+
+  /* Surface */
+  --canvas-black: #131313;
+  --surface-slate: #2d2d2d;
+  --image-frame: #313131;
+  --hazard-white: #ffffff;
+  --absolute-black: #000000;
+
+  /* Story-tile editorial accents (full-bleed only) */
+  --tile-yellow: #ffec3b;
+  --tile-pink: #ff5dc8;
+  --tile-orange: #ff7a1a;
+  --tile-electric-blue: #2b6df0;
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #949494;
+  --text-muted: #e9e9e9;
+  --text-inverted: #131313;
+  --text-dim: #8c8c8c;
+
+  /* States */
+  --state-pressed-bg: rgba(140, 140, 140, 0.87);
+  --state-hover-bg: rgba(255, 255, 255, 0.2);
+  --state-hover-ring: #c2c2c2;
+  --overlay-ring: rgba(0, 0, 0, 0.33);
+
+  /* Semantic mapping */
+  --bg: var(--canvas-black);
+  --bg-card: var(--canvas-black);
+  --bg-card-secondary: var(--surface-slate);
+  --fg1: var(--text-primary);
+  --fg2: var(--text-muted);
+  --fg3: var(--text-secondary);
+  --border: var(--hazard-white);
+  --border-quiet: var(--image-frame);
+  --accent: var(--jelly-mint);
+  --accent-secondary: var(--verge-ultraviolet);
+  --link-hover: var(--deep-link-blue);
+
+  /* ============== TYPOGRAPHY ============== */
+
+  /* Font families — substitutions FLAGGED */
+  --font-display: 'Archivo Black', 'Manuka', 'Impact', 'Helvetica', sans-serif;        /* SUB: Manuka → Archivo Black */
+  --font-sans: 'Space Grotesk', 'PolySans', 'Helvetica', 'Arial', sans-serif;          /* SUB: PolySans → Space Grotesk */
+  --font-mono: 'Space Mono', 'PolySans Mono', 'Courier New', monospace;                /* SUB: PolySans Mono → Space Mono */
+  --font-serif: 'Newsreader', 'FK Roman Standard', 'Georgia', serif;                   /* SUB: FK Roman → Newsreader */
+  --font-utility: 'Roboto', -apple-system, system-ui, sans-serif;
+
+  /* Type scale (px) */
+  --type-display-xl: 107px;
+  --type-display-lg: 90px;
+  --type-display-md: 60px;
+  --type-headline-xl: 34px;
+  --type-headline-wide: 32px;
+  --type-headline-md: 24px;
+  --type-headline-sm: 20px;
+  --type-light-cap: 19px;
+  --type-allcaps-xl: 18px;
+  --type-body-bold: 16px;
+  --type-body: 16px;
+  --type-label: 15px;
+  --type-body-compact: 13px;
+  --type-eyebrow: 12px;
+  --type-tag: 12px;
+  --type-caption-micro: 11px;
+  --type-meta-nano: 10px;
+  --type-mono-button: 12px;
+  --type-mono-timestamp: 11px;
+  --type-serif-body: 16px;
+  --type-serif-caption: 20px;
+
+  /* Tracking (letter-spacing) */
+  --tracking-display-xl: 1.07px;
+  --tracking-headline-wide: 0.32px;
+  --tracking-light-cap: 1.9px;
+  --tracking-allcaps-xl: 1.8px;
+  --tracking-label: 0.15px;
+  --tracking-eyebrow: 1.8px;
+  --tracking-tag: 0.72px;
+  --tracking-caption-micro: 1.1px;
+  --tracking-meta-nano: 1.5px;
+  --tracking-mono-button: 1.5px;
+  --tracking-mono-timestamp-tight: 1.1px;
+  --tracking-mono-timestamp-wide: 1.8px;
+  --tracking-serif-body: -0.16px;
+
+  /* Line-heights — display loosened for substitute font (Archivo Black has wider metrics than Manuka) */
+  --lh-display-sub: 0.95;   /* SUB-ADJUSTED: Manuka 0.80 → Archivo Black 0.95 */
+  --lh-display-true: 0.80;  /* If you swap Manuka back in, use this */
+  --lh-headline: 1.0;
+  --lh-heading-wide: 1.10;
+  --lh-light-cap: 1.20;
+  --lh-allcaps: 1.10;
+  --lh-eyebrow: 1.30;
+  --lh-tag: 1.20;
+  --lh-meta-nano: 1.40;
+  --lh-mono-button: 2.00;
+  --lh-mono-timestamp: 1.20;
+  --lh-body: 1.60;
+  --lh-serif-body: 1.30;
+  --lh-serif-caption: 1.20;
+
+  /* ============== SPACING ============== */
+  /* 8px base, with deliberately uneven editorial sub-scale */
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-5: 5px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-9: 9px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-15: 15px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-25: 25px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-64: 64px;
+
+  /* ============== RADII ============== */
+  --radius-2: 2px;     /* Inputs, typewriter tags */
+  --radius-3: 3px;     /* Inline images */
+  --radius-4: 4px;     /* Nested images, small buttons */
+  --radius-20: 20px;   /* Standard pill cards */
+  --radius-24: 24px;   /* Feature tiles, primary pill buttons */
+  --radius-30: 30px;   /* Large promo buttons */
+  --radius-40: 40px;   /* Outlined CTAs */
+  --radius-circle: 50%; /* Avatars, icon buttons */
+
+  /* ============== ELEVATION ============== */
+  /* No drop shadows. Borders + inset underlines + saturated fills only. */
+  --depth-hairline-white: inset 0 0 0 1px var(--hazard-white);
+  --depth-hairline-mint: inset 0 0 0 1px var(--jelly-mint);
+  --depth-hairline-violet: inset 0 0 0 1px var(--verge-ultraviolet);
+  --depth-hairline-frame: inset 0 0 0 1px var(--image-frame);
+  --depth-stack-ring: 0 0 0 1px var(--overlay-ring);
+  --depth-active-tab-mint: inset 0 -1px 0 0 var(--jelly-mint);
+  --depth-active-tab-white: inset 0 -1px 0 0 var(--hazard-white);
+  --depth-active-tab-black: inset 0 -1px 0 0 var(--absolute-black);
+
+  /* ============== MOTION ============== */
+  --motion-fast: 150ms;
+  --motion-base: 180ms;
+  --easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-color: color var(--motion-fast) var(--easing);
+  --transition-bg: background-color var(--motion-base) var(--easing), box-shadow var(--motion-base) var(--easing);
+}
+
+/* ============================================================
+   BASE / SEMANTIC STYLES
+   ============================================================ */
+
+html, body {
+  background: var(--canvas-black);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+* { box-sizing: border-box; }
+
+/* ============== HEADLINES ============== */
+
+.h-display-xl, .display-xl {
+  font-family: var(--font-display);
+  font-size: var(--type-display-xl);
+  font-weight: 900;
+  line-height: var(--lh-display-sub);
+  letter-spacing: var(--tracking-display-xl);
+  text-transform: none;
+  margin: 0;
+}
+
+.h-display-lg, .display-lg {
+  font-family: var(--font-display);
+  font-size: var(--type-display-lg);
+  font-weight: 900;
+  line-height: var(--lh-display-sub);
+  margin: 0;
+}
+
+.h-display-md, .display-md {
+  font-family: var(--font-display);
+  font-size: var(--type-display-md);
+  font-weight: 900;
+  line-height: var(--lh-display-sub);
+  margin: 0;
+}
+
+h1, .h1 {
+  font-family: var(--font-sans);
+  font-size: var(--type-headline-xl);
+  font-weight: 700;
+  line-height: var(--lh-headline);
+  margin: 0;
+}
+
+h2, .h2 {
+  font-family: var(--font-sans);
+  font-size: var(--type-headline-wide);
+  font-weight: 400;
+  line-height: var(--lh-heading-wide);
+  letter-spacing: var(--tracking-headline-wide);
+  margin: 0;
+}
+
+h3, .h3 {
+  font-family: var(--font-sans);
+  font-size: var(--type-headline-md);
+  font-weight: 700;
+  line-height: var(--lh-headline);
+  margin: 0;
+}
+
+h4, .h4 {
+  font-family: var(--font-sans);
+  font-size: var(--type-headline-sm);
+  font-weight: 700;
+  line-height: var(--lh-headline);
+  margin: 0;
+}
+
+.h-whisper {
+  font-family: var(--font-sans);
+  font-size: var(--type-light-cap);
+  font-weight: 300;
+  line-height: var(--lh-light-cap);
+  letter-spacing: var(--tracking-light-cap);
+  text-transform: uppercase;
+}
+
+/* ============== LABELS ============== */
+
+.label-allcaps-xl {
+  font-family: var(--font-sans);
+  font-size: var(--type-allcaps-xl);
+  font-weight: 400;
+  line-height: var(--lh-allcaps);
+  letter-spacing: var(--tracking-allcaps-xl);
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--type-eyebrow);
+  font-weight: 400;
+  line-height: var(--lh-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.tag-label {
+  font-family: var(--font-sans);
+  font-size: var(--type-tag);
+  font-weight: 400;
+  line-height: var(--lh-tag);
+  letter-spacing: var(--tracking-tag);
+  text-transform: uppercase;
+}
+
+.caption-micro {
+  font-family: var(--font-sans);
+  font-size: var(--type-caption-micro);
+  font-weight: 400;
+  line-height: var(--lh-tag);
+  letter-spacing: var(--tracking-caption-micro);
+  text-transform: uppercase;
+}
+
+.meta-nano {
+  font-family: var(--font-sans);
+  font-size: var(--type-meta-nano);
+  font-weight: 500;
+  line-height: var(--lh-meta-nano);
+  letter-spacing: var(--tracking-meta-nano);
+  text-transform: uppercase;
+}
+
+/* ============== MONO ============== */
+
+.mono-button {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-button);
+  font-weight: 700;
+  line-height: var(--lh-mono-button);
+  letter-spacing: var(--tracking-mono-button);
+  text-transform: uppercase;
+}
+
+.mono-timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-timestamp);
+  font-weight: 500;
+  line-height: var(--lh-mono-timestamp);
+  letter-spacing: var(--tracking-mono-timestamp-tight);
+  text-transform: uppercase;
+}
+
+/* ============== BODY ============== */
+
+.body-relaxed, p {
+  font-family: var(--font-sans);
+  font-size: var(--type-body);
+  font-weight: 500;
+  line-height: var(--lh-body);
+  margin: 0;
+}
+
+.body-bold {
+  font-weight: 700;
+}
+
+.body-compact {
+  font-size: var(--type-body-compact);
+  line-height: var(--lh-body);
+}
+
+.label {
+  font-family: var(--font-sans);
+  font-size: var(--type-label);
+  font-weight: 400;
+  line-height: var(--lh-light-cap);
+  letter-spacing: var(--tracking-label);
+}
+
+/* ============== SERIF ============== */
+
+.serif-body {
+  font-family: var(--font-serif);
+  font-size: var(--type-serif-body);
+  font-weight: 400;
+  line-height: var(--lh-serif-body);
+  letter-spacing: var(--tracking-serif-body);
+}
+
+.serif-caption {
+  font-family: var(--font-serif);
+  font-size: var(--type-serif-caption);
+  font-weight: 400;
+  line-height: var(--lh-serif-caption);
+  font-style: italic;
+}
+
+/* ============== LINKS ============== */
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: var(--transition-color);
+}
+
+a:hover { color: var(--deep-link-blue); }
+
+/* ============== UTILITY ============== */
+
+.canvas { background: var(--canvas-black); color: var(--text-primary); }
+.tile-mint { background: var(--jelly-mint); color: var(--absolute-black); }
+.tile-violet { background: var(--verge-ultraviolet); color: var(--hazard-white); }
+.tile-yellow { background: var(--tile-yellow); color: var(--absolute-black); }
+.tile-pink { background: var(--tile-pink); color: var(--absolute-black); }
+.tile-orange { background: var(--tile-orange); color: var(--absolute-black); }
+.tile-blue { background: var(--tile-electric-blue); color: var(--hazard-white); }
+.tile-white { background: var(--hazard-white); color: var(--absolute-black); }
+.tile-slate { background: var(--surface-slate); color: var(--text-muted); }
