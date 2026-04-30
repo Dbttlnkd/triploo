@@ -191,7 +191,22 @@ const PhotoScreen = ({ onBack }) => {
         body: { image_base64, mime: file.type || 'image/jpeg' },
       });
       if (error) {
-        setErrorMsg(error.message || 'Erreur lors de l’appel à l’IA');
+        let detail = error.message || 'Erreur lors de l’appel à l’IA';
+        try {
+          const body = await error.context?.json?.();
+          if (body?.error === 'missing_api_key') {
+            detail = "Le secret ANTHROPIC_API_KEY n'est pas configuré côté Supabase (Edge Functions → Secrets).";
+          } else if (body?.error === 'anthropic_error') {
+            detail = `Anthropic API : ${body.status || ''} ${body.detail || ''}`.trim();
+          } else if (body?.error) {
+            detail = body.error + (body.detail ? ` — ${body.detail}` : '');
+          } else if (body?.notes) {
+            detail = body.notes;
+          }
+        } catch {
+          // body wasn't JSON; keep the SDK message
+        }
+        setErrorMsg(detail);
         setStage('error');
         return;
       }
