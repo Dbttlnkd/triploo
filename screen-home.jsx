@@ -64,7 +64,12 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, onDelete, lang = 'fr' })
             <div style={{
               fontFamily: 'var(--font-display)', fontSize: 38, lineHeight: 0.92,
               fontWeight: 900, marginTop: 10,
-            }}>Lance la partie en deux gestes.</div>
+            }}>Crée une partie en 20 secondes.</div>
+            <div style={{ marginTop: 8 }}>
+              <Mono color="rgba(0,0,0,0.72)" size={10} tracking="1.2px" weight={700}>
+                1 VS 1 · 2 VS 2 · 3 VS 3 · 1 VS 2
+              </Mono>
+            </div>
             <div style={{ marginTop: 14 }}>
               <button onClick={onNew} style={{
                 background: '#000', color: '#3cffd0', border: 0, borderRadius: 30,
@@ -72,7 +77,7 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, onDelete, lang = 'fr' })
                 fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase',
                 cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
               }}>
-                <Icon name="plus" size={14}/> Démarrer
+                <Icon name="plus" size={14}/> Nouvelle partie
               </button>
             </div>
           </div>
