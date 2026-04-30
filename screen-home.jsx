@@ -38,10 +38,11 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, onDelete, lang = 'fr' })
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%', paddingBottom: 24 }}>
       {/* Wordmark masthead */}
       <div style={{ padding: '18px 18px 0' }}>
-        <div style={{
-          fontFamily: 'var(--font-display)', fontSize: 78, fontWeight: 900,
-          lineHeight: 0.85, letterSpacing: '-0.5px', color: '#fff',
-        }}>Triploo</div>
+        <img
+          src="/triploo-logo.png"
+          alt="Triploo"
+          style={{ display: 'block', height: 124, width: 'auto', maxWidth: '100%' }}
+        />
         <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{
             width: 10, height: 10, borderRadius: '50%', background: '#3cffd0',
