@@ -37,28 +37,15 @@ const NO_LIVE_GAME_QUIPS = [
   'Silence radio sur le terrain.',
 ];
 
-function NoLiveGameScreen({ onCreate, onBack }) {
+function NoLiveGameScreen({ onCreate }) {
   const quip = React.useMemo(
     () => NO_LIVE_GAME_QUIPS[Math.floor(Math.random() * NO_LIVE_GAME_QUIPS.length)],
     [],
   );
   return (
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
-      <div style={{ padding: '24px 18px 18px' }}>
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            background: 'transparent', border: 0, color: '#949494',
-            fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '1.4px',
-            textTransform: 'uppercase', padding: 0, cursor: 'pointer',
-          }}
-        >
-          ← Accueil
-        </button>
-      </div>
       <div style={{
-        padding: '0 18px 24px',
+        padding: '32px 18px 24px',
         display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 22,
       }}>
         <Mono color="#3cffd0" size={11} tracking="1.9px">EN JEU · NIENTE</Mono>
@@ -305,10 +292,7 @@ export function App() {
         );
       } else {
         content = (
-          <NoLiveGameScreen
-            onCreate={() => go({ name: 'create' })}
-            onBack={() => { setTab('home'); go({ name: 'home' }); }}
-          />
+          <NoLiveGameScreen onCreate={() => go({ name: 'create' })}/>
         );
       }
       break;
@@ -321,7 +305,7 @@ export function App() {
       break;
     }
     case 'photo':
-      content = <PhotoScreen onBack={() => { setTab('home'); go({ name: 'home' }); }}/>;
+      content = <PhotoScreen/>;
       break;
     case 'stats':
       content = <StatsScreen lang={LANG} games={displayGames}/>;
@@ -329,8 +313,6 @@ export function App() {
     default:
       content = <HomeScreen games={displayGames} onOpen={() => {}} onNew={() => {}} lang={LANG}/>;
   }
-
-  const noTabs = ['live', 'create', 'spectator'].includes(route.name);
 
   return (
     <div style={{
@@ -350,23 +332,19 @@ export function App() {
       <main style={{
         width: '100%', maxWidth: 480, margin: '0 auto',
         minHeight: '100dvh',
-        paddingBottom: noTabs
-          ? 'env(safe-area-inset-bottom)'
-          : 'calc(72px + env(safe-area-inset-bottom))',
+        paddingBottom: 'calc(72px + env(safe-area-inset-bottom))',
       }}>
         {content}
       </main>
-      {!noTabs && (
-        <div style={{
-          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30,
-          background: 'var(--canvas-black)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}>
-          <div style={{ maxWidth: 480, margin: '0 auto' }}>
-            <TabBar active={tab} onChange={onTab} lang={LANG}/>
-          </div>
+      <div style={{
+        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30,
+        background: 'var(--canvas-black)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}>
+        <div style={{ maxWidth: 480, margin: '0 auto' }}>
+          <TabBar active={tab} onChange={onTab} lang={LANG}/>
         </div>
-      )}
+      </div>
     </div>
   );
 }
