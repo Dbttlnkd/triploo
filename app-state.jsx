@@ -170,15 +170,6 @@ const DEMO_GAMES = [
   },
 ];
 
-const PLAYER_STATS = [
-  { name: 'Jean-Mi', played: 24, wins: 17, ratio: 71, role: 'Pointeur' },
-  { name: 'Bruno', played: 19, wins: 12, ratio: 63, role: 'Tireur' },
-  { name: 'Karim', played: 22, wins: 13, ratio: 59, role: 'Milieu' },
-  { name: 'Sandra', played: 18, wins: 11, ratio: 61, role: 'Pointeuse' },
-  { name: 'Élise', played: 15, wins: 10, ratio: 67, role: 'Tireuse' },
-  { name: 'Marco', played: 12, wins: 5, ratio: 42, role: 'Milieu' },
-];
-
 // Color helpers — map team color tokens to canvas palettes
 const TEAM_COLORS = {
   mint:     { bg: '#3cffd0', fg: '#000', name: 'Mint' },
@@ -230,4 +221,4 @@ const Icon = ({ name, size = 18, color = 'currentColor', stroke = 1.6 }) => {
   );
 };
 
-export { I18N, DEMO_GAMES, PLAYER_STATS, TEAM_COLORS, currentScore, Icon };
+export { I18N, DEMO_GAMES, TEAM_COLORS, currentScore, Icon };
