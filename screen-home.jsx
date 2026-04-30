@@ -181,66 +181,38 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, lang = 'fr' }) => {
 // ─────────────────────────────────────────────────────────────
 // Create game screen
 // ─────────────────────────────────────────────────────────────
-function formatPlayerBounds(format) {
-  if (format === 'teteATete') return { minA: 1, maxA: 1, minB: 1, maxB: 1 };
-  if (format === 'doublette') return { minA: 2, maxA: 2, minB: 2, maxB: 2 };
-  if (format === 'triplette') return { minA: 3, maxA: 3, minB: 3, maxB: 3 };
-  if (format === 'unContreDeux') return { minA: 1, maxA: 1, minB: 2, maxB: 2 };
-  return { minA: 2, maxA: 2, minB: 2, maxB: 2 };
+const MIN_PLAYERS_PER_TEAM = 1;
+const MAX_PLAYERS_PER_TEAM = 3;
+
+function uiFormatFromTeamSizes(a, b) {
+  if (a === 1 && b === 1) return 'teteATete';
+  if (a === 2 && b === 2) return 'doublette';
+  if (a === 3 && b === 3) return 'triplette';
+  if ((a === 1 && b === 2) || (a === 2 && b === 1)) return 'unContreDeux';
+  return 'doublette';
 }
 
-function clampTeamPlayers(team, min, max) {
-  let players = [...(team.players || [])];
-  while (players.length < min) players.push(`Joueur ${players.length + 1}`);
-  while (players.length > max) players.pop();
-  return { ...team, players };
-}
-
-const PLAYER_SUGGESTIONS_LIST_ID = 'triploo-player-suggestions';
-
-const CreateScreen = ({ onCancel, onCreate, lang = 'fr', playerSuggestions = [] }) => {
-  const t = I18N[lang];
-  const [format, setFormat] = React.useState('doublette');
+const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [] }) => {
   const [target, setTarget] = React.useState(13);
   const [bestOf, setBestOf] = React.useState(1);
   const [name, setName] = React.useState('Tournoi du soir');
   const [place, setPlace] = React.useState('Boulodrome de Saint-Tropez');
-  const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: ['', ''] });
-  const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: ['', ''] });
-
-  const b = formatPlayerBounds(format);
-  React.useEffect(() => {
-    const x = formatPlayerBounds(format);
-    setTeamA((a) => clampTeamPlayers(a, x.minA, x.maxA));
-    setTeamB((t) => clampTeamPlayers(t, x.minB, x.maxB));
-  }, [format]);
-
-  const formats = [
-    { id: 'teteATete', label: t.teteATete, sub: '1 vs 1 · 3 boules' },
-    { id: 'doublette', label: t.doublette, sub: '2 vs 2 · 3 boules' },
-    { id: 'triplette', label: t.triplette, sub: '3 vs 3 · 2 boules' },
-    { id: 'unContreDeux', label: t.unContreDeux, sub: '1 vs 2 · 3 boules' },
-  ];
+  const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: [''] });
+  const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: [''] });
 
   const handleLaunch = () => {
-    const pa = clampTeamPlayers(
-      { players: teamA.players.map((p) => p.trim()) },
-      b.minA,
-      b.maxA,
-    ).players;
-    const pb = clampTeamPlayers(
-      { players: teamB.players.map((p) => p.trim()) },
-      b.minB,
-      b.maxB,
-    ).players;
+    const pa = teamA.players.map((p) => p.trim()).filter(Boolean);
+    const pb = teamB.players.map((p) => p.trim()).filter(Boolean);
+    const safePa = pa.length ? pa : ['Joueur 1'];
+    const safePb = pb.length ? pb : ['Joueur 1'];
     onCreate?.({
       name: name.trim() || 'Partie',
       place: place.trim(),
-      formatUi: format,
+      formatUi: uiFormatFromTeamSizes(safePa.length, safePb.length),
       target,
       bestOf,
-      teamA: { name: teamA.name.trim() || 'Équipe A', color: teamA.color, players: pa },
-      teamB: { name: teamB.name.trim() || 'Équipe B', color: teamB.color, players: pb },
+      teamA: { name: teamA.name.trim() || 'Équipe A', color: teamA.color, players: safePa },
+      teamB: { name: teamB.name.trim() || 'Équipe B', color: teamB.color, players: safePb },
     });
   };
 
@@ -248,50 +220,16 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr', playerSuggestions = [] 
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
       <ScreenHeader kicker="NOUVELLE PARTIE" title="On lance ?" onBack={onCancel}/>
 
-      {playerSuggestions.length > 0 && (
-        <datalist id={PLAYER_SUGGESTIONS_LIST_ID}>
-          {playerSuggestions.map((n) => <option key={n} value={n}/>)}
-        </datalist>
-      )}
-
       <div style={{ padding: '18px 18px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Format */}
-        <section>
-          <Mono color="#949494" size={10} tracking="1.5px">Format</Mono>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-            {formats.map(f => {
-              const active = format === f.id;
-              return (
-                <button key={f.id} onClick={() => setFormat(f.id)} style={{
-                  background: active ? 'var(--jelly-mint)' : 'transparent',
-                  color: active ? '#000' : '#fff',
-                  border: `1px solid ${active ? 'var(--jelly-mint)' : '#fff'}`,
-                  borderRadius: 20, padding: '14px 8px', cursor: 'pointer',
-                  textAlign: 'left',
-                }}>
-                  <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>
-                    {f.label}
-                  </div>
-                  <div style={{ marginTop: 6 }}>
-                    <Mono color={active ? 'rgba(0,0,0,0.7)' : '#949494'} size={9} tracking="1.1px" weight={500}>
-                      {f.sub}
-                    </Mono>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
         {/* Teams */}
         <section>
           <Mono color="#949494" size={10} tracking="1.5px">Équipes</Mono>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-            <TeamCard team={teamA} onChange={setTeamA} accent="A" minPlayers={b.minA} maxPlayers={b.maxA} suggestionsListId={PLAYER_SUGGESTIONS_LIST_ID} suggestionsCount={playerSuggestions.length}/>
+            <TeamCard team={teamA} onChange={setTeamA} accent="A" suggestions={playerSuggestions}/>
             <div style={{ textAlign: 'center' }}>
               <Mono color="#5200ff" size={11} tracking="1.8px" weight={700}>VS</Mono>
             </div>
-            <TeamCard team={teamB} onChange={setTeamB} accent="B" minPlayers={b.minB} maxPlayers={b.maxB} suggestionsListId={PLAYER_SUGGESTIONS_LIST_ID} suggestionsCount={playerSuggestions.length}/>
+            <TeamCard team={teamB} onChange={setTeamB} accent="B" suggestions={playerSuggestions}/>
           </div>
         </section>
 
@@ -352,8 +290,98 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr', playerSuggestions = [] 
   );
 };
 
-const TeamCard = ({ team, onChange, accent, minPlayers = 1, maxPlayers = 3, suggestionsListId, suggestionsCount = 0 }) => {
+function PlayerInput({ value, onChange, placeholder, suggestions, color }) {
+  const [open, setOpen] = React.useState(false);
+  const wrapperRef = React.useRef(null);
+
+  const filtered = React.useMemo(() => {
+    const q = (value || '').trim().toLowerCase();
+    const used = new Set();
+    const list = [];
+    for (const s of suggestions) {
+      if (!s) continue;
+      const k = s.toLowerCase();
+      if (used.has(k)) continue;
+      if (q && !k.includes(q)) continue;
+      used.add(k);
+      list.push(s);
+      if (list.length >= 8) break;
+    }
+    return list;
+  }, [value, suggestions]);
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onDocPointer = (e) => {
+      if (!wrapperRef.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocPointer);
+    document.addEventListener('touchstart', onDocPointer);
+    return () => {
+      document.removeEventListener('mousedown', onDocPointer);
+      document.removeEventListener('touchstart', onDocPointer);
+    };
+  }, [open]);
+
+  const exactExisting = filtered.some((s) => s.toLowerCase() === (value || '').trim().toLowerCase());
+  const showCreateHint = open && (value || '').trim().length > 0 && !exactExisting;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+      <input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); if (!open) setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        autoComplete="off"
+        autoCapitalize="words"
+        spellCheck={false}
+        style={{
+          width: '100%', background: 'transparent', border: 0, outline: 0, color,
+          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
+        }}
+      />
+      {open && (filtered.length > 0 || showCreateHint) && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20,
+          background: '#131313', border: '1px solid #313131', borderRadius: 14,
+          padding: 4, maxHeight: 220, overflowY: 'auto',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+        }}>
+          {filtered.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onChange(s); setOpen(false); }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: 'transparent', border: 0, color: '#fff',
+                padding: '8px 10px', cursor: 'pointer', borderRadius: 8,
+                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(60,255,208,0.12)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >{s}</button>
+          ))}
+          {showCreateHint && (
+            <div style={{
+              padding: '8px 10px', color: '#3cffd0',
+              fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
+              borderTop: filtered.length > 0 ? '1px solid #313131' : 0,
+            }}>
+              + Créer « {value.trim()} »
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TeamCard = ({ team, onChange, accent, suggestions = [] }) => {
   const c = TEAM_COLORS[team.color];
+  const minPlayers = MIN_PLAYERS_PER_TEAM;
+  const maxPlayers = MAX_PLAYERS_PER_TEAM;
   const setName = (v) => onChange({ ...team, name: v });
   const setPlayer = (idx, v) => {
     const players = [...team.players];
@@ -401,18 +429,12 @@ const TeamCard = ({ team, onChange, accent, minPlayers = 1, maxPlayers = 3, sugg
             color: c.fg, borderRadius: 40, padding: '6px 10px',
           }}>
             <Icon name="user" size={11} color={c.fg}/>
-            <input
+            <PlayerInput
               value={p}
-              onChange={(e) => setPlayer(i, e.target.value)}
-              list={suggestionsCount > 0 ? suggestionsListId : undefined}
+              onChange={(v) => setPlayer(i, v)}
               placeholder={`Joueur ${i + 1}`}
-              autoComplete="off"
-              autoCapitalize="words"
-              spellCheck={false}
-              style={{
-                flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: c.fg,
-                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
-              }}
+              suggestions={suggestions}
+              color={c.fg}
             />
             <button type="button" disabled={team.players.length <= minPlayers} onClick={() => removePlayer(i)} style={{
               background: 'transparent', border: 0, color: c.fg, cursor: team.players.length <= minPlayers ? 'not-allowed' : 'pointer',
