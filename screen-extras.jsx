@@ -262,19 +262,6 @@ const PhotoScreen = ({ onBack }) => {
               <PillBtn variant="primary" wide icon="camera" onClick={() => cameraRef.current?.click()}>Prendre la photo</PillBtn>
               <PillBtn variant="ghost" wide icon="image" onClick={() => galleryRef.current?.click()}>Choisir dans la galerie</PillBtn>
             </div>
-
-            <div style={{ marginTop: 22, padding: 16, border: '1px solid #309875', borderRadius: 20 }}>
-              <Eyebrow color="#3cffd0">COMMENT ÇA MARCHE</Eyebrow>
-              <ol style={{
-                margin: '12px 0 0', paddingLeft: 18, color: '#fff',
-                fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6,
-              }}>
-                <li>L'IA repère le cochonnet</li>
-                <li>Distingue les deux jeux de boules par leur motif</li>
-                <li>Classe les boules visibles, de la plus proche à la plus éloignée</li>
-                <li>Annonce qui pointe et de combien</li>
-              </ol>
-            </div>
           </>
         )}
 

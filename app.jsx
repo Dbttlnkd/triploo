@@ -12,7 +12,7 @@ import {
   deleteGameRemote,
   subscribeRounds,
 } from './lib/games.js';
-import { Mono, TabBar } from './ui-kit.jsx';
+import { Mono, Display, TabBar } from './ui-kit.jsx';
 import { HomeScreen, CreateScreen, StatsScreen } from './screen-home.jsx';
 import { LiveScreen } from './screen-live.jsx';
 import { SpectatorScreen, PhotoScreen } from './screen-extras.jsx';
@@ -27,6 +27,66 @@ function cloneDemoGames() {
     teams: g.teams.map((t) => ({ ...t, players: [...(t.players || [])] })),
     rounds: [...(g.rounds || [])],
   }));
+}
+
+const NO_LIVE_GAME_QUIPS = [
+  'Le cochonnet médite. Aucune partie en cours.',
+  'Les boules dorment dans leurs sacoches.',
+  'Pastis chaud, terrain froid : aucune partie pour le moment.',
+  'Tu pointes ou tu tires ? Encore faut-il une partie.',
+  'Silence radio sur le terrain.',
+];
+
+function NoLiveGameScreen({ onCreate, onBack }) {
+  const quip = React.useMemo(
+    () => NO_LIVE_GAME_QUIPS[Math.floor(Math.random() * NO_LIVE_GAME_QUIPS.length)],
+    [],
+  );
+  return (
+    <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
+      <div style={{ padding: '24px 18px 18px' }}>
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            background: 'transparent', border: 0, color: '#949494',
+            fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '1.4px',
+            textTransform: 'uppercase', padding: 0, cursor: 'pointer',
+          }}
+        >
+          ← Accueil
+        </button>
+      </div>
+      <div style={{
+        padding: '0 18px 24px',
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 22,
+      }}>
+        <Mono color="#3cffd0" size={11} tracking="1.9px">EN JEU · NIENTE</Mono>
+        <Display size={56} style={{ letterSpacing: '-0.5px', lineHeight: 0.95 }}>
+          Pas de partie en cours.
+        </Display>
+        <div style={{ fontSize: 56, lineHeight: 1 }} role="img" aria-label="boules">🎯</div>
+        <p style={{
+          color: '#949494', fontSize: 15, lineHeight: 1.55, fontStyle: 'italic',
+          fontFamily: 'var(--font-sans)', maxWidth: 320, margin: 0,
+        }}>
+          « {quip} »
+        </p>
+        <button
+          type="button"
+          onClick={onCreate}
+          style={{
+            marginTop: 8, padding: '14px 22px', borderRadius: 30, border: 0,
+            background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
+            fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Lancer une partie
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function App() {
@@ -99,7 +159,7 @@ export function App() {
   const onTab = (t) => {
     setTab(t);
     if (t === 'home') go({ name: 'home' });
-    else if (t === 'live' && liveGame) go({ name: 'live', gameId: liveGame.id });
+    else if (t === 'live') go(liveGame ? { name: 'live', gameId: liveGame.id } : { name: 'live' });
     else if (t === 'photo') go({ name: 'photo' });
     else if (t === 'stats') go({ name: 'stats' });
   };
@@ -229,21 +289,28 @@ export function App() {
       );
       break;
     case 'live': {
-      const g = resolveGame(route.gameId);
-      content = g ? (
-        <LiveScreen
-          game={g}
-          onBack={() => { setTab('home'); go({ name: 'home' }); }}
-          onShare={() => go({ name: 'spectator', gameId: g.id })}
-          layout={SCORING_LAYOUT}
-          lang={LANG}
-          onAddRound={(side, pts) => handleAddRound(g.id, side, pts)}
-          onUndoRound={() => handleUndoRound(g.id)}
-          onGameFinished={(id, sc) => handleGameFinished(id, sc)}
-        />
-      ) : (
-        <Mono color="#949494" style={{ padding: 24 }}>Partie introuvable.</Mono>
-      );
+      const g = route.gameId ? resolveGame(route.gameId) : null;
+      if (g) {
+        content = (
+          <LiveScreen
+            game={g}
+            onBack={() => { setTab('home'); go({ name: 'home' }); }}
+            onShare={() => go({ name: 'spectator', gameId: g.id })}
+            layout={SCORING_LAYOUT}
+            lang={LANG}
+            onAddRound={(side, pts) => handleAddRound(g.id, side, pts)}
+            onUndoRound={() => handleUndoRound(g.id)}
+            onGameFinished={(id, sc) => handleGameFinished(id, sc)}
+          />
+        );
+      } else {
+        content = (
+          <NoLiveGameScreen
+            onCreate={() => go({ name: 'create' })}
+            onBack={() => { setTab('home'); go({ name: 'home' }); }}
+          />
+        );
+      }
       break;
     }
     case 'spectator': {
