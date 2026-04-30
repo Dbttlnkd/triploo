@@ -350,11 +350,12 @@ const SchemaScreen = ({ onBack }) => (
         <Eyebrow color="#3cffd0">SUPABASE · TABLES</Eyebrow>
         <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
-            { name: 'games', cols: 'id, name, place, format, target, best_of, status, owner_id, created_at', accent: 'mint' },
+            { name: 'games', cols: 'id, owner_id, name, place, format, target, best_of, status, winner_team_id, started_at, finished_at, …', accent: 'mint' },
             { name: 'teams', cols: 'id, game_id, name, color, position', accent: 'violet' },
-            { name: 'players', cols: 'id, team_id, name, role, user_id?', accent: 'yellow' },
-            { name: 'rounds', cols: 'id, game_id, team_id, points, idx, created_at', accent: 'pink' },
-            { name: 'spectators', cols: 'id, game_id, token, email?, expires_at', accent: 'electric' },
+            { name: 'players', cols: 'id, team_id, name, role, user_id?, sort_order', accent: 'yellow' },
+            { name: 'rounds', cols: 'id, game_id, team_id, points, round_index', accent: 'pink' },
+            { name: 'spectator_access', cols: 'id, game_id, token (UUID), email?, expires_at', accent: 'electric' },
+            { name: 'photo_analyses', cols: 'id, game_id?, owner_id, storage_path, result (jsonb)', accent: 'mint' },
           ].map(t => {
             const c = TEAM_COLORS[t.accent];
             return (

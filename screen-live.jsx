@@ -5,32 +5,71 @@ import {
   Mono, Display, LiveDot, PillBtn, ScoreButton, Boule,
 } from './ui-kit.jsx';
 
-const LiveScreen = ({ game, onBack, onShare, layout = 'split', lang = 'fr' }) => {
-  const [rounds, setRounds] = React.useState(game.rounds || []);
+const LiveScreen = ({
+  game,
+  onBack,
+  onShare,
+  layout = 'split',
+  lang = 'fr',
+  onAddRound,
+  onUndoRound,
+  onGameFinished,
+}) => {
   const [pendingTeam, setPendingTeam] = React.useState(null); // 't1' | 't2'
   const [showEnd, setShowEnd] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const finishedRef = React.useRef(false);
+
+  const rounds = game.rounds || [];
 
   const score = React.useMemo(() => {
     const o = { t1: 0, t2: 0 };
-    rounds.forEach(r => o[r.team] += r.points);
+    rounds.forEach((r) => { o[r.team] += r.points; });
     return o;
   }, [rounds]);
+
+  React.useEffect(() => {
+    setShowEnd(false);
+    setPendingTeam(null);
+    finishedRef.current = false;
+  }, [game.id]);
 
   React.useEffect(() => {
     if ((score.t1 >= game.target || score.t2 >= game.target) && !showEnd) {
       const tmr = setTimeout(() => setShowEnd(true), 800);
       return () => clearTimeout(tmr);
     }
-  }, [score, game.target]);
+  }, [score.t1, score.t2, game.target, showEnd]);
 
-  const submit = (points) => {
-    if (!pendingTeam) return;
-    setRounds([...rounds, { team: pendingTeam, points }]);
+  React.useEffect(() => {
+    if (!showEnd || !onGameFinished || finishedRef.current) return;
+    finishedRef.current = true;
+    Promise.resolve(onGameFinished(game.id, score)).catch(() => {});
+  }, [showEnd, game.id, score, onGameFinished]);
+
+  const submit = async (points) => {
+    if (!pendingTeam || busy) return;
+    if (onAddRound) {
+      setBusy(true);
+      try {
+        await onAddRound(pendingTeam, points);
+      } finally {
+        setBusy(false);
+      }
+    }
     setPendingTeam(null);
   };
 
-  const undo = () => {
-    if (rounds.length > 0) setRounds(rounds.slice(0, -1));
+  const undo = async () => {
+    if (rounds.length === 0 || busy) return;
+    if (onUndoRound) {
+      setBusy(true);
+      try {
+        await onUndoRound();
+      } finally {
+        setBusy(false);
+      }
+    }
   };
 
   if (showEnd) return <EndScreen game={game} rounds={rounds} score={score} onBack={onBack} onShare={onShare}/>;
@@ -83,7 +122,8 @@ const LiveScreen = ({ game, onBack, onShare, layout = 'split', lang = 'fr' }) =>
           allRounds={rounds}
           teamId="t1"
           pendingActive={pendingTeam === 't1'}
-          onTap={() => setPendingTeam('t1')}
+          busy={busy}
+          onTap={() => !busy && setPendingTeam('t1')}
           onSubmit={submit}
           onCancel={() => setPendingTeam(null)}
         />
@@ -110,13 +150,13 @@ const LiveScreen = ({ game, onBack, onShare, layout = 'split', lang = 'fr' }) =>
               )}
             </div>
           </div>
-          <button onClick={undo} disabled={rounds.length === 0} style={{
-            background: 'transparent', border: 0, cursor: rounds.length ? 'pointer' : 'not-allowed',
-            color: rounds.length ? '#fff' : '#494949', padding: 0,
+          <button onClick={undo} disabled={busy || rounds.length === 0} style={{
+            background: 'transparent', border: 0, cursor: (rounds.length && !busy) ? 'pointer' : 'not-allowed',
+            color: (rounds.length && !busy) ? '#fff' : '#494949', padding: 0,
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
-            <Icon name="undo" size={14} color={rounds.length ? '#fff' : '#494949'}/>
-            <Mono color={rounds.length ? '#fff' : '#494949'} size={10}>UNDO</Mono>
+            <Icon name="undo" size={14} color={(rounds.length && !busy) ? '#fff' : '#494949'}/>
+            <Mono color={(rounds.length && !busy) ? '#fff' : '#494949'} size={10}>UNDO</Mono>
           </button>
         </div>
 
@@ -131,7 +171,8 @@ const LiveScreen = ({ game, onBack, onShare, layout = 'split', lang = 'fr' }) =>
           allRounds={rounds}
           teamId="t2"
           pendingActive={pendingTeam === 't2'}
-          onTap={() => setPendingTeam('t2')}
+          busy={busy}
+          onTap={() => !busy && setPendingTeam('t2')}
           onSubmit={submit}
           onCancel={() => setPendingTeam(null)}
         />
@@ -140,7 +181,7 @@ const LiveScreen = ({ game, onBack, onShare, layout = 'split', lang = 'fr' }) =>
   );
 };
 
-const TeamPanel = ({ team, score, target, isLeading, flipped, rounds, allRounds, teamId, pendingActive, onTap, onSubmit, onCancel }) => {
+const TeamPanel = ({ team, score, target, isLeading, flipped, rounds, allRounds, teamId, pendingActive, busy, onTap, onSubmit, onCancel }) => {
   const c = TEAM_COLORS[team.color];
   // Total mène contributions for this team — for the timeline
   const myMenes = allRounds.map((r, i) => ({...r, idx: i})).filter(r => r.team === teamId);
@@ -184,9 +225,9 @@ const TeamPanel = ({ team, score, target, isLeading, flipped, rounds, allRounds,
           </div>
 
           {/* The big score */}
-          <button onClick={onTap} style={{
+          <button type="button" disabled={busy} onClick={onTap} style={{
             flex: 1, background: 'transparent', border: 0, color: c.fg,
-            cursor: 'pointer', padding: '0 18px', display: 'flex',
+            cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.55 : 1, padding: '0 18px', display: 'flex',
             alignItems: 'center', justifyContent: 'center', gap: 14,
             position: 'relative', minHeight: 0,
           }}>
@@ -275,7 +316,7 @@ const ScoreInput = ({ onPick, onCancel, fg, bg }) => {
 // End-of-game summary
 // ─────────────────────────────────────────────────────────────
 const EndScreen = ({ game, rounds, score, onBack }) => {
-  const winnerId = score.t1 >= game.target ? 't1' : 't2';
+  const winnerId = score.t1 > score.t2 ? 't1' : score.t2 > score.t1 ? 't2' : 't1';
   const loserId = winnerId === 't1' ? 't2' : 't1';
   const winner = winnerId === 't1' ? game.teams[0] : game.teams[1];
   const loser = winnerId === 't1' ? game.teams[1] : game.teams[0];

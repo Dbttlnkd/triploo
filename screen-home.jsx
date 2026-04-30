@@ -181,6 +181,21 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, lang = 'fr' }) => {
 // ─────────────────────────────────────────────────────────────
 // Create game screen
 // ─────────────────────────────────────────────────────────────
+function formatPlayerBounds(format) {
+  if (format === 'teteATete') return { minA: 1, maxA: 1, minB: 1, maxB: 1 };
+  if (format === 'doublette') return { minA: 2, maxA: 2, minB: 2, maxB: 2 };
+  if (format === 'triplette') return { minA: 3, maxA: 3, minB: 3, maxB: 3 };
+  if (format === 'unContreDeux') return { minA: 1, maxA: 1, minB: 2, maxB: 2 };
+  return { minA: 2, maxA: 2, minB: 2, maxB: 2 };
+}
+
+function clampTeamPlayers(team, min, max) {
+  let players = [...(team.players || [])];
+  while (players.length < min) players.push(`Joueur ${players.length + 1}`);
+  while (players.length > max) players.pop();
+  return { ...team, players };
+}
+
 const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
   const t = I18N[lang];
   const [format, setFormat] = React.useState('doublette');
@@ -191,11 +206,41 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
   const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: ['Jean-Mi', 'Bruno'] });
   const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: ['Karim', 'Sandra'] });
 
+  const b = formatPlayerBounds(format);
+  React.useEffect(() => {
+    const x = formatPlayerBounds(format);
+    setTeamA((a) => clampTeamPlayers(a, x.minA, x.maxA));
+    setTeamB((t) => clampTeamPlayers(t, x.minB, x.maxB));
+  }, [format]);
+
   const formats = [
-    { id: 'teteATete', label: 'Tête-à-tête', sub: '1 vs 1 · 3 boules' },
-    { id: 'doublette', label: 'Doublette', sub: '2 vs 2 · 3 boules' },
-    { id: 'triplette', label: 'Triplette', sub: '3 vs 3 · 2 boules' },
+    { id: 'teteATete', label: t.teteATete, sub: '1 vs 1 · 3 boules' },
+    { id: 'doublette', label: t.doublette, sub: '2 vs 2 · 3 boules' },
+    { id: 'triplette', label: t.triplette, sub: '3 vs 3 · 2 boules' },
+    { id: 'unContreDeux', label: t.unContreDeux, sub: '1 vs 2 · 3 boules' },
   ];
+
+  const handleLaunch = () => {
+    const pa = clampTeamPlayers(
+      { players: teamA.players.map((p) => p.trim()) },
+      b.minA,
+      b.maxA,
+    ).players;
+    const pb = clampTeamPlayers(
+      { players: teamB.players.map((p) => p.trim()) },
+      b.minB,
+      b.maxB,
+    ).players;
+    onCreate?.({
+      name: name.trim() || 'Partie',
+      place: place.trim(),
+      formatUi: format,
+      target,
+      bestOf,
+      teamA: { name: teamA.name.trim() || 'Équipe A', color: teamA.color, players: pa },
+      teamB: { name: teamB.name.trim() || 'Équipe B', color: teamB.color, players: pb },
+    });
+  };
 
   return (
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
@@ -205,7 +250,7 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
         {/* Format */}
         <section>
           <Mono color="#949494" size={10} tracking="1.5px">Format</Mono>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
             {formats.map(f => {
               const active = format === f.id;
               return (
@@ -234,11 +279,11 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
         <section>
           <Mono color="#949494" size={10} tracking="1.5px">Équipes</Mono>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-            <TeamCard team={teamA} onChange={setTeamA} accent="A"/>
+            <TeamCard team={teamA} onChange={setTeamA} accent="A" minPlayers={b.minA} maxPlayers={b.maxA}/>
             <div style={{ textAlign: 'center' }}>
               <Mono color="#5200ff" size={11} tracking="1.8px" weight={700}>VS</Mono>
             </div>
-            <TeamCard team={teamB} onChange={setTeamB} accent="B"/>
+            <TeamCard team={teamB} onChange={setTeamB} accent="B" minPlayers={b.minB} maxPlayers={b.maxB}/>
           </div>
         </section>
 
@@ -292,32 +337,47 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
         </section>
 
         <div style={{ marginTop: 6 }}>
-          <PillBtn variant="primary" wide icon="arrow" onClick={onCreate}>Lancer la partie</PillBtn>
+          <PillBtn variant="primary" wide icon="arrow" onClick={handleLaunch}>Lancer la partie</PillBtn>
         </div>
       </div>
     </div>
   );
 };
 
-const TeamCard = ({ team, onChange, accent }) => {
+const TeamCard = ({ team, onChange, accent, minPlayers = 1, maxPlayers = 3 }) => {
   const c = TEAM_COLORS[team.color];
+  const setName = (v) => onChange({ ...team, name: v });
+  const setPlayer = (idx, v) => {
+    const players = [...team.players];
+    players[idx] = v;
+    onChange({ ...team, players });
+  };
+  const addPlayer = () => {
+    if (team.players.length >= maxPlayers) return;
+    onChange({ ...team, players: [...team.players, `Joueur ${team.players.length + 1}`] });
+  };
+  const removePlayer = (idx) => {
+    if (team.players.length <= minPlayers) return;
+    onChange({ ...team, players: team.players.filter((_, i) => i !== idx) });
+  };
   return (
     <div style={{
       background: c.bg, color: c.fg, borderRadius: 24, padding: 18,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
+        <div style={{ flex: 1, marginRight: 8 }}>
           <Mono color={c.fg === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'} size={10} tracking="1.5px">
             ÉQUIPE {accent}
           </Mono>
-          <div style={{
+          <input value={team.name} onChange={(e) => setName(e.target.value)} style={{
+            display: 'block', width: '100%', marginTop: 6,
             fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 900,
-            lineHeight: 1, marginTop: 6, color: c.fg,
-          }}>{team.name}</div>
+            lineHeight: 1, color: c.fg, background: 'transparent', border: 0, outline: 0,
+          }}/>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           {Object.keys(TEAM_COLORS).filter(k => k !== 'white').map(col => (
-            <button key={col} onClick={() => onChange({...team, color: col})} style={{
+            <button key={col} type="button" onClick={() => onChange({...team, color: col})} style={{
               width: 18, height: 18, borderRadius: '50%', cursor: 'pointer',
               background: TEAM_COLORS[col].bg, border: `1.5px solid ${team.color === col ? '#000' : 'transparent'}`,
               padding: 0,
@@ -325,23 +385,29 @@ const TeamCard = ({ team, onChange, accent }) => {
           ))}
         </div>
       </div>
-      <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {team.players.map((p, i) => (
           <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
             background: c.fg === '#fff' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)',
-            color: c.fg, borderRadius: 40, padding: '6px 12px',
-            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-            letterSpacing: '1.1px', textTransform: 'uppercase',
-            display: 'inline-flex', alignItems: 'center', gap: 6,
+            color: c.fg, borderRadius: 40, padding: '6px 10px',
           }}>
-            <Icon name="user" size={11} color={c.fg}/>{p}
+            <Icon name="user" size={11} color={c.fg}/>
+            <input value={p} onChange={(e) => setPlayer(i, e.target.value)} style={{
+              flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: c.fg,
+              fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
+            }}/>
+            <button type="button" disabled={team.players.length <= minPlayers} onClick={() => removePlayer(i)} style={{
+              background: 'transparent', border: 0, color: c.fg, cursor: team.players.length <= minPlayers ? 'not-allowed' : 'pointer',
+              opacity: team.players.length <= minPlayers ? 0.35 : 1, fontSize: 14, padding: '0 4px',
+            }} aria-label="Retirer">×</button>
           </div>
         ))}
-        <button style={{
+        <button type="button" disabled={team.players.length >= maxPlayers} onClick={addPlayer} style={{
           background: 'transparent', border: `1px dashed ${c.fg}`,
-          color: c.fg, borderRadius: 40, padding: '6px 12px', cursor: 'pointer',
+          color: c.fg, borderRadius: 40, padding: '6px 12px', cursor: team.players.length >= maxPlayers ? 'not-allowed' : 'pointer',
           fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-          letterSpacing: '1.1px', textTransform: 'uppercase',
+          letterSpacing: '1.1px', textTransform: 'uppercase', opacity: team.players.length >= maxPlayers ? 0.4 : 1,
         }}>+ Joueur</button>
       </div>
     </div>
