@@ -9,6 +9,7 @@ import {
   addRoundRemote,
   undoLastRoundRemote,
   finalizeGameRemote,
+  deleteGameRemote,
   subscribeRounds,
 } from './lib/games.js';
 import { Mono, TabBar } from './ui-kit.jsx';
@@ -169,6 +170,22 @@ export function App() {
     }));
   };
 
+  const handleDeleteGame = async (gameId) => {
+    if (!gameId) return;
+    if (typeof window !== 'undefined' && !window.confirm('Supprimer cette partie ? Les mènes et les joueurs liés seront aussi effacés.')) return;
+    if (remote) {
+      try {
+        await deleteGameRemote(gameId);
+      } catch (e) {
+        setLoadErr(e?.message || String(e));
+        return;
+      }
+    }
+    setGames((prev) => prev.filter((g) => g.id !== gameId));
+    setRoute((r) => (r.gameId === gameId ? { name: 'home' } : r));
+    setTab((current) => (route.name === 'live' && route.gameId === gameId ? 'home' : current));
+  };
+
   const resolveGame = (id) => displayGames.find((x) => x.id === id);
 
   let content = null;
@@ -183,6 +200,7 @@ export function App() {
             go(g.status === 'live' ? { name: 'live', gameId: id } : { name: 'spectator', gameId: id });
           }}
           onNew={() => go({ name: 'create' })}
+          onDelete={handleDeleteGame}
           lang={LANG}
         />
       );

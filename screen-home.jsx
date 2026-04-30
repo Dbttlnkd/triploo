@@ -5,7 +5,30 @@ import {
   Whisper, Mono, Eyebrow, Display, PillBtn, Boule, Card, ScreenHeader,
 } from './ui-kit.jsx';
 
-const HomeScreen = ({ games, onOpen, onNew, onSpectate, lang = 'fr' }) => {
+function TrashButton({ onClick, color = '#949494', label = 'Supprimer la partie' }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      aria-label={label}
+      title={label}
+      style={{
+        background: 'transparent', border: 0, cursor: 'pointer',
+        padding: 6, color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 8,
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6M14 11v6"/>
+        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+      </svg>
+    </button>
+  );
+}
+
+const HomeScreen = ({ games, onOpen, onNew, onSpectate, onDelete, lang = 'fr' }) => {
   const t = I18N[lang];
   const live = games.filter(g => g.status === 'live');
   const archived = games.filter(g => g.status === 'archived');
@@ -106,7 +129,12 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, lang = 'fr' }) => {
                     </Mono>
                   </div>
                 </div>
-                <Icon name="radio" size={20} color="#3cffd0"/>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Icon name="radio" size={20} color="#3cffd0"/>
+                  {onDelete && (
+                    <TrashButton onClick={() => onDelete(g.id)} color="#949494"/>
+                  )}
+                </div>
               </div>
 
               {/* score block */}
@@ -147,7 +175,7 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, lang = 'fr' }) => {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {archived.map((g, i) => (
               <div key={g.id} onClick={() => onOpen(g.id)} style={{
-                display: 'grid', gridTemplateColumns: '64px 1fr auto', gap: 12,
+                display: 'grid', gridTemplateColumns: '64px 1fr auto auto', gap: 12,
                 padding: '14px 0', borderBottom: i === archived.length - 1 ? 'none' : '1px solid #313131',
                 cursor: 'pointer', alignItems: 'center',
               }}>
@@ -169,6 +197,9 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, lang = 'fr' }) => {
                 <Mono color={g.winner === 't1' ? '#3cffd0' : '#5200ff'} size={11} tracking="1.5px">
                   {g.winner === 't1' ? 'WIN A' : 'WIN B'}
                 </Mono>
+                {onDelete && (
+                  <TrashButton onClick={() => onDelete(g.id)}/>
+                )}
               </div>
             ))}
           </div>
