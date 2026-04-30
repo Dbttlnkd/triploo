@@ -3,9 +3,6 @@ import React from 'react';
 import { DEMO_GAMES } from './app-state.jsx';
 import { getSupabase, isSupabaseConfigured } from './lib/supabase.js';
 import {
-  AnonDisabledError,
-  ensureAuthSession,
-  sendAuthMagicLink,
   fetchGamesForUser,
   createGameRemote,
   addRoundRemote,
@@ -13,6 +10,11 @@ import {
   finalizeGameRemote,
   subscribeRounds,
 } from './lib/games.js';
+import {
+  signInWithUsername,
+  signUpWithUsername,
+  validateUsername,
+} from './lib/auth.js';
 import { IOSDevice } from './ios-frame.jsx';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakButton,
@@ -47,11 +49,11 @@ export function App() {
   const [games, setGames] = React.useState(() => (remote ? [] : cloneDemoGames()));
   const [loadErr, setLoadErr] = React.useState(null);
   const [authPhase, setAuthPhase] = React.useState(() => (remote ? 'checking' : 'ready'));
-  const [emailInput, setEmailInput] = React.useState('');
-  const [emailBusy, setEmailBusy] = React.useState(false);
-  const [emailSent, setEmailSent] = React.useState(false);
-
-  const authReady = authPhase === 'ready';
+  const [authMode, setAuthMode] = React.useState('signin');
+  const [usernameInput, setUsernameInput] = React.useState('');
+  const [passwordInput, setPasswordInput] = React.useState('');
+  const [authBusy, setAuthBusy] = React.useState(false);
+  const [authErr, setAuthErr] = React.useState(null);
 
   const refreshGames = React.useCallback(async () => {
     if (!remote) return;
@@ -67,7 +69,11 @@ export function App() {
     const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setAuthPhase('ready');
+        setAuthErr(null);
+        setPasswordInput('');
         refreshGames();
+      } else {
+        setAuthPhase('need_login');
       }
     });
 
@@ -80,17 +86,9 @@ export function App() {
           await refreshGames();
           return;
         }
-        await ensureAuthSession();
-        if (cancelled) return;
-        setAuthPhase('ready');
-        await refreshGames();
+        setAuthPhase('need_login');
       } catch (e) {
         if (cancelled) return;
-        const anonOff = e instanceof AnonDisabledError || e?.code === 'ANON_DISABLED';
-        if (anonOff) {
-          setAuthPhase('need_email');
-          return;
-        }
         setLoadErr(e?.message || String(e));
       }
     })();
@@ -101,21 +99,38 @@ export function App() {
     };
   }, [remote, refreshGames]);
 
-  const handleSendMagicLink = async () => {
-    setLoadErr(null);
-    if (!emailInput.trim()) {
-      setLoadErr('Indique une adresse email.');
+  const handleAuthSubmit = async (e) => {
+    e?.preventDefault?.();
+    setAuthErr(null);
+
+    const u = usernameInput.trim().toLowerCase();
+    const formatErr = validateUsername(u);
+    if (formatErr) {
+      setAuthErr(formatErr);
       return;
     }
-    setEmailBusy(true);
-    try {
-      await sendAuthMagicLink(emailInput);
-      setEmailSent(true);
-    } catch (e) {
-      setLoadErr(e?.message || String(e));
-    } finally {
-      setEmailBusy(false);
+    if (!passwordInput || passwordInput.length < 6) {
+      setAuthErr('Mot de passe : 6 caractères minimum');
+      return;
     }
+
+    setAuthBusy(true);
+    try {
+      if (authMode === 'signup') {
+        await signUpWithUsername(u, passwordInput);
+      } else {
+        await signInWithUsername(u, passwordInput);
+      }
+    } catch (err) {
+      setAuthErr(err?.message || String(err));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const switchAuthMode = (next) => {
+    setAuthMode(next);
+    setAuthErr(null);
   };
 
   React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
@@ -304,54 +319,94 @@ export function App() {
           {authPhase === 'checking' && (
             <Mono color="#fff">Connexion…</Mono>
           )}
-          {authPhase === 'need_email' && (
-            <div style={{
-              maxWidth: 400, width: '100%', background: '#131313', border: '1px solid #309875',
-              borderRadius: 24, padding: '28px 24px', color: '#fff',
-            }}>
-              <Display size={26} style={{ letterSpacing: '-0.5px' }}>Connexion Triploo</Display>
+          {authPhase === 'need_login' && (
+            <form
+              onSubmit={handleAuthSubmit}
+              style={{
+                maxWidth: 400, width: '100%', background: '#131313', border: '1px solid #309875',
+                borderRadius: 24, padding: '28px 24px', color: '#fff',
+              }}
+            >
+              <Display size={26} style={{ letterSpacing: '-0.5px' }}>
+                {authMode === 'signup' ? 'Créer un compte' : 'Connexion Triploo'}
+              </Display>
               <p style={{ color: '#949494', fontSize: 14, lineHeight: 1.55, marginTop: 14 }}>
-                La connexion <strong style={{ color: '#fff' }}>anonyme</strong> est désactivée sur ce projet Supabase.
-                Tu peux soit l’activer (Authentication → Providers → <strong style={{ color: '#3cffd0' }}>Anonymous</strong>),
-                soit recevoir un <strong style={{ color: '#fff' }}>lien magique</strong> par email.
+                {authMode === 'signup'
+                  ? 'Choisis un username unique et un mot de passe.'
+                  : 'Connecte-toi avec ton username et ton mot de passe.'}
               </p>
-              {emailSent ? (
-                <Mono color="#3cffd0" size={12} style={{ marginTop: 18, display: 'block' }}>
-                  Lien envoyé. Ouvre ta boîte mail puis clique sur le lien pour revenir ici.
+
+              <label style={{ display: 'block', marginTop: 18 }}>
+                <Mono color="#949494" size={10} tracking="1.2px">USERNAME</Mono>
+                <input
+                  type="text"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  placeholder="ex. lulu_ptq"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={20}
+                  style={{
+                    display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
+                    borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+                    fontSize: 16, outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'block', marginTop: 14 }}>
+                <Mono color="#949494" size={10} tracking="1.2px">MOT DE PASSE</Mono>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="6 caractères minimum"
+                  autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                  style={{
+                    display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
+                    borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+                    fontSize: 16, outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+
+              {authErr && (
+                <Mono color="#ff5e5e" size={12} style={{ marginTop: 14, display: 'block', lineHeight: 1.5 }}>
+                  {authErr}
                 </Mono>
-              ) : (
-                <>
-                  <label style={{ display: 'block', marginTop: 18 }}>
-                    <Mono color="#949494" size={10} tracking="1.2px">EMAIL</Mono>
-                    <input
-                      type="email"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      placeholder="toi@exemple.com"
-                      autoComplete="email"
-                      style={{
-                        display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
-                        borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
-                        fontSize: 16, outline: 'none', boxSizing: 'border-box',
-                      }}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    disabled={emailBusy}
-                    onClick={handleSendMagicLink}
-                    style={{
-                      marginTop: 16, width: '100%', padding: '14px 18px', borderRadius: 30, border: 0,
-                      background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
-                      fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
-                      cursor: emailBusy ? 'wait' : 'pointer', opacity: emailBusy ? 0.7 : 1,
-                    }}
-                  >
-                    {emailBusy ? 'Envoi…' : 'Recevoir le lien magique'}
-                  </button>
-                </>
               )}
-            </div>
+
+              <button
+                type="submit"
+                disabled={authBusy}
+                style={{
+                  marginTop: 18, width: '100%', padding: '14px 18px', borderRadius: 30, border: 0,
+                  background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
+                  fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+                  cursor: authBusy ? 'wait' : 'pointer', opacity: authBusy ? 0.7 : 1,
+                }}
+              >
+                {authBusy
+                  ? '…'
+                  : authMode === 'signup' ? 'Créer mon compte' : 'Se connecter'}
+              </button>
+
+              <div style={{ marginTop: 14, textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => switchAuthMode(authMode === 'signup' ? 'signin' : 'signup')}
+                  style={{
+                    background: 'transparent', border: 0, color: '#3cffd0',
+                    fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '1px',
+                    textTransform: 'uppercase', cursor: 'pointer', padding: 4,
+                  }}
+                >
+                  {authMode === 'signup' ? 'J’ai déjà un compte' : 'Créer un compte'}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       )}
