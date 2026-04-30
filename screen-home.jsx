@@ -2,7 +2,7 @@
 import React from 'react';
 import { I18N, TEAM_COLORS, Icon, currentScore } from './app-state.jsx';
 import {
-  Whisper, Mono, Eyebrow, Display, PillBtn, Boule, Card, ScreenHeader,
+  Mono, Eyebrow, Display, PillBtn, Boule, Card, ScreenHeader,
 } from './ui-kit.jsx';
 
 function TrashButton({ onClick, color = '#949494', label = 'Supprimer la partie' }) {
@@ -38,10 +38,9 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, onDelete, lang = 'fr' })
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%', paddingBottom: 24 }}>
       {/* Wordmark masthead */}
       <div style={{ padding: '18px 18px 0' }}>
-        <Whisper color="var(--text-secondary)">Pétanque · Tracker · Sud</Whisper>
         <div style={{
           fontFamily: 'var(--font-display)', fontSize: 78, fontWeight: 900,
-          lineHeight: 0.85, letterSpacing: '-0.5px', color: '#fff', marginTop: 4,
+          lineHeight: 0.85, letterSpacing: '-0.5px', color: '#fff',
         }}>Triploo</div>
         <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{
@@ -597,9 +596,6 @@ const StatsScreen = ({ games = [] }) => {
         <ScreenHeader kicker="STATS" title="Le palmarès."/>
         <div style={{ padding: '24px 18px', color: '#949494', fontSize: 14, lineHeight: 1.6 }}>
           <Mono color="#949494" size={11} tracking="1.5px">AUCUNE PARTIE POUR LE MOMENT</Mono>
-          <p style={{ marginTop: 12 }}>
-            Lance une partie depuis l'onglet « Parties ». Les stats des joueurs s'agrègent dès la première partie terminée.
-          </p>
         </div>
       </div>
     );
