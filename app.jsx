@@ -1,11 +1,12 @@
 // Triploo — App root: routing, screen orchestration, Tweaks panel, Supabase
 import React from 'react';
 import { DEMO_GAMES } from './app-state.jsx';
-import { isSupabaseConfigured } from './lib/supabase.js';
+import { getSupabase, isSupabaseConfigured } from './lib/supabase.js';
 import {
+  AnonDisabledError,
   ensureAuthSession,
+  sendAuthMagicLink,
   fetchGamesForUser,
-  fetchGameById,
   createGameRemote,
   addRoundRemote,
   undoLastRoundRemote,
@@ -45,7 +46,12 @@ export function App() {
 
   const [games, setGames] = React.useState(() => (remote ? [] : cloneDemoGames()));
   const [loadErr, setLoadErr] = React.useState(null);
-  const [authReady, setAuthReady] = React.useState(!remote);
+  const [authPhase, setAuthPhase] = React.useState(() => (remote ? 'checking' : 'ready'));
+  const [emailInput, setEmailInput] = React.useState('');
+  const [emailBusy, setEmailBusy] = React.useState(false);
+  const [emailSent, setEmailSent] = React.useState(false);
+
+  const authReady = authPhase === 'ready';
 
   const refreshGames = React.useCallback(async () => {
     if (!remote) return;
@@ -56,18 +62,61 @@ export function App() {
   React.useEffect(() => {
     if (!remote) return;
     let cancelled = false;
+    const sb = getSupabase();
+
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setAuthPhase('ready');
+        refreshGames();
+      }
+    });
+
     (async () => {
       try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (cancelled) return;
+        if (session) {
+          setAuthPhase('ready');
+          await refreshGames();
+          return;
+        }
         await ensureAuthSession();
         if (cancelled) return;
-        setAuthReady(true);
+        setAuthPhase('ready');
         await refreshGames();
       } catch (e) {
-        if (!cancelled) setLoadErr(e?.message || String(e));
+        if (cancelled) return;
+        const anonOff = e instanceof AnonDisabledError || e?.code === 'ANON_DISABLED';
+        if (anonOff) {
+          setAuthPhase('need_email');
+          return;
+        }
+        setLoadErr(e?.message || String(e));
       }
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, [remote, refreshGames]);
+
+  const handleSendMagicLink = async () => {
+    setLoadErr(null);
+    if (!emailInput.trim()) {
+      setLoadErr('Indique une adresse email.');
+      return;
+    }
+    setEmailBusy(true);
+    try {
+      await sendAuthMagicLink(emailInput);
+      setEmailSent(true);
+    } catch (e) {
+      setLoadErr(e?.message || String(e));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
 
   React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
 
@@ -247,9 +296,63 @@ export function App() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: '#070707', padding: 24, gap: 28, flexWrap: 'wrap',
     }}>
-      {!authReady && remote && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <Mono color="#fff">Connexion…</Mono>
+      {remote && authPhase !== 'ready' && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(7,7,7,0.92)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 50, padding: 24,
+        }}>
+          {authPhase === 'checking' && (
+            <Mono color="#fff">Connexion…</Mono>
+          )}
+          {authPhase === 'need_email' && (
+            <div style={{
+              maxWidth: 400, width: '100%', background: '#131313', border: '1px solid #309875',
+              borderRadius: 24, padding: '28px 24px', color: '#fff',
+            }}>
+              <Display size={26} style={{ letterSpacing: '-0.5px' }}>Connexion Triploo</Display>
+              <p style={{ color: '#949494', fontSize: 14, lineHeight: 1.55, marginTop: 14 }}>
+                La connexion <strong style={{ color: '#fff' }}>anonyme</strong> est désactivée sur ce projet Supabase.
+                Tu peux soit l’activer (Authentication → Providers → <strong style={{ color: '#3cffd0' }}>Anonymous</strong>),
+                soit recevoir un <strong style={{ color: '#fff' }}>lien magique</strong> par email.
+              </p>
+              {emailSent ? (
+                <Mono color="#3cffd0" size={12} style={{ marginTop: 18, display: 'block' }}>
+                  Lien envoyé. Ouvre ta boîte mail puis clique sur le lien pour revenir ici.
+                </Mono>
+              ) : (
+                <>
+                  <label style={{ display: 'block', marginTop: 18 }}>
+                    <Mono color="#949494" size={10} tracking="1.2px">EMAIL</Mono>
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder="toi@exemple.com"
+                      autoComplete="email"
+                      style={{
+                        display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
+                        borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+                        fontSize: 16, outline: 'none', boxSizing: 'border-box',
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={emailBusy}
+                    onClick={handleSendMagicLink}
+                    style={{
+                      marginTop: 16, width: '100%', padding: '14px 18px', borderRadius: 30, border: 0,
+                      background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
+                      fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+                      cursor: emailBusy ? 'wait' : 'pointer', opacity: emailBusy ? 0.7 : 1,
+                    }}
+                  >
+                    {emailBusy ? 'Envoi…' : 'Recevoir le lien magique'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
       {loadErr && (
