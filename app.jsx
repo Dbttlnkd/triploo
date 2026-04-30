@@ -1,4 +1,4 @@
-// Triploo — App root: routing, screen orchestration, Tweaks panel, Supabase
+// Triploo — App root: routing, screen orchestration, Supabase
 import React from 'react';
 import { DEMO_GAMES } from './app-state.jsx';
 import { getSupabase, isSupabaseConfigured } from './lib/supabase.js';
@@ -15,21 +15,14 @@ import {
   signUpWithUsername,
   validateUsername,
 } from './lib/auth.js';
-import {
-  useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakButton,
-} from './tweaks-panel.jsx';
 import { Mono, Display, TabBar } from './ui-kit.jsx';
 import { HomeScreen, CreateScreen, StatsScreen } from './screen-home.jsx';
 import { LiveScreen } from './screen-live.jsx';
-import { SpectatorScreen, PhotoScreen, SchemaScreen } from './screen-extras.jsx';
+import { SpectatorScreen, PhotoScreen } from './screen-extras.jsx';
 
-const TWEAKS_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "language": "fr",
-  "winThreshold": 13,
-  "scoringLayout": "split",
-  "showSpectatorBadge": true,
-  "demoLiveScore": "live"
-}/*EDITMODE-END*/;
+const LANG = 'fr';
+const WIN_THRESHOLD = 13;
+const SCORING_LAYOUT = 'split';
 
 function cloneDemoGames() {
   return DEMO_GAMES.map((g) => ({
@@ -40,7 +33,6 @@ function cloneDemoGames() {
 }
 
 export function App() {
-  const [tweaks, setTweak] = useTweaks(TWEAKS_DEFAULTS);
   const [route, setRoute] = React.useState({ name: 'home' });
   const [tab, setTab] = React.useState('home');
   const remote = isSupabaseConfigured();
@@ -136,8 +128,8 @@ export function App() {
 
   const displayGames = React.useMemo(() => {
     if (remote) return games;
-    return games.map((g) => ({ ...g, target: tweaks.winThreshold || g.target }));
-  }, [games, remote, tweaks.winThreshold]);
+    return games.map((g) => ({ ...g, target: WIN_THRESHOLD || g.target }));
+  }, [games, remote]);
 
   const liveGame = displayGames.find((g) => g.status === 'live');
 
@@ -251,7 +243,7 @@ export function App() {
             go(g.status === 'live' ? { name: 'live', gameId: id } : { name: 'spectator', gameId: id });
           }}
           onNew={() => go({ name: 'create' })}
-          lang={tweaks.language}
+          lang={LANG}
         />
       );
       break;
@@ -260,7 +252,7 @@ export function App() {
         <CreateScreen
           onCancel={() => go({ name: 'home' })}
           onCreate={handleCreate}
-          lang={tweaks.language}
+          lang={LANG}
         />
       );
       break;
@@ -271,8 +263,8 @@ export function App() {
           game={g}
           onBack={() => { setTab('home'); go({ name: 'home' }); }}
           onShare={() => go({ name: 'spectator', gameId: g.id })}
-          layout={tweaks.scoringLayout}
-          lang={tweaks.language}
+          layout={SCORING_LAYOUT}
+          lang={LANG}
           onAddRound={(side, pts) => handleAddRound(g.id, side, pts)}
           onUndoRound={() => handleUndoRound(g.id)}
           onGameFinished={(id, sc) => handleGameFinished(id, sc)}
@@ -293,13 +285,10 @@ export function App() {
       content = <PhotoScreen onBack={() => { setTab('home'); go({ name: 'home' }); }}/>;
       break;
     case 'stats':
-      content = <StatsScreen lang={tweaks.language}/>;
-      break;
-    case 'schema':
-      content = <SchemaScreen onBack={() => { setTab('home'); go({ name: 'home' }); }}/>;
+      content = <StatsScreen lang={LANG}/>;
       break;
     default:
-      content = <HomeScreen games={displayGames} onOpen={() => {}} onNew={() => {}} lang={tweaks.language}/>;
+      content = <HomeScreen games={displayGames} onOpen={() => {}} onNew={() => {}} lang={LANG}/>;
   }
 
   const noTabs = ['live', 'create', 'spectator'].includes(route.name);
@@ -427,44 +416,11 @@ export function App() {
         </div>
         {!noTabs && (
           <div style={{ flexShrink: 0, paddingBottom: 18 }}>
-            <TabBar active={tab} onChange={onTab} lang={tweaks.language}/>
+            <TabBar active={tab} onChange={onTab} lang={LANG}/>
           </div>
         )}
         {noTabs && <div style={{ flexShrink: 0, height: 18 }}/>}
       </main>
-
-      <TweaksPanel title="Tweaks">
-        <TweakSection title="Langue">
-          <TweakRadio
-            value={tweaks.language}
-            onChange={(v) => setTweak('language', v)}
-            options={[{ value: 'fr', label: 'FR' }, { value: 'en', label: 'EN' }]}
-          />
-        </TweakSection>
-        <TweakSection title="Score à atteindre">
-          <TweakRadio
-            value={tweaks.winThreshold}
-            onChange={(v) => setTweak('winThreshold', v)}
-            options={[{ value: 11, label: '11' }, { value: 13, label: '13' }, { value: 15, label: '15' }, { value: 21, label: '21' }]}
-          />
-        </TweakSection>
-        <TweakSection title="Démo">
-          <TweakButton onClick={() => setRoute({ name: 'home' })}>Accueil</TweakButton>
-          {liveGame && (
-            <>
-              <TweakButton onClick={() => setRoute({ name: 'live', gameId: liveGame.id })}>Live scoring</TweakButton>
-              <TweakButton onClick={() => setRoute({ name: 'spectator', gameId: liveGame.id })}>Vue spectateur</TweakButton>
-            </>
-          )}
-          <TweakButton onClick={() => setRoute({ name: 'photo' })}>Qui pointe ?</TweakButton>
-          <TweakButton onClick={() => setRoute({ name: 'create' })}>Nouvelle partie</TweakButton>
-          <TweakButton onClick={() => setRoute({ name: 'stats' })}>Stats</TweakButton>
-          <TweakButton onClick={() => setRoute({ name: 'schema' })}>Schéma DB</TweakButton>
-          {remote && (
-            <TweakButton onClick={() => refreshGames()}>Rafraîchir (Supabase)</TweakButton>
-          )}
-        </TweakSection>
-      </TweaksPanel>
     </div>
   );
 }
