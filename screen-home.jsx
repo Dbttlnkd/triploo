@@ -1,6 +1,6 @@
 // Triploo — Home screen (Parties list) + Create + Stats
 import React from 'react';
-import { I18N, TEAM_COLORS, Icon, currentScore, PLAYER_STATS } from './app-state.jsx';
+import { I18N, TEAM_COLORS, Icon, currentScore } from './app-state.jsx';
 import {
   Whisper, Mono, Eyebrow, Display, PillBtn, Boule, Card, ScreenHeader,
 } from './ui-kit.jsx';
@@ -431,61 +431,143 @@ const Field = ({ label, value, onChange, icon }) => (
 );
 
 // ─────────────────────────────────────────────────────────────
-// Stats screen
+// Stats screen — agrégation des parties réelles de l'utilisateur
 // ─────────────────────────────────────────────────────────────
-const StatsScreen = ({ lang = 'fr' }) => {
-  const t = I18N[lang];
+function gameDateValue(g) {
+  const raw = g._raw;
+  return new Date(raw?.finished_at || raw?.started_at || raw?.created_at || 0).getTime();
+}
+
+function aggregatePlayerStats(games) {
+  const map = new Map();
+  const finished = games
+    .filter((g) => g.status === 'archived' && g.winner)
+    .sort((a, b) => gameDateValue(a) - gameDateValue(b));
+
+  const streak = new Map();
+  const bestStreak = new Map();
+
+  for (const g of finished) {
+    g.teams.forEach((team) => {
+      const isWinning = team.id === g.winner;
+      for (const playerName of team.players || []) {
+        const name = (playerName || '').trim();
+        if (!name) continue;
+
+        if (!map.has(name)) map.set(name, { name, played: 0, wins: 0 });
+        const s = map.get(name);
+        s.played += 1;
+        if (isWinning) {
+          s.wins += 1;
+          const next = (streak.get(name) || 0) + 1;
+          streak.set(name, next);
+          if (next > (bestStreak.get(name) || 0)) bestStreak.set(name, next);
+        } else {
+          streak.set(name, 0);
+        }
+      }
+    });
+  }
+
+  const rows = Array.from(map.values()).map((s) => ({
+    ...s,
+    ratio: s.played ? Math.round((s.wins / s.played) * 100) : 0,
+    bestStreak: bestStreak.get(s.name) || 0,
+  }));
+  rows.sort((a, b) => (b.ratio - a.ratio) || (b.wins - a.wins) || (b.played - a.played));
+  return rows;
+}
+
+const StatsScreen = ({ games = [] }) => {
+  const stats = React.useMemo(() => aggregatePlayerStats(games), [games]);
+  const totalGames = games.length;
+  const finished = games.filter((g) => g.status === 'archived').length;
+  const live = games.filter((g) => g.status === 'live').length;
+  const top = stats[0];
+  const bestStreakRow = stats.reduce((acc, r) => (r.bestStreak > (acc?.bestStreak || 0) ? r : acc), null);
+
+  if (totalGames === 0) {
+    return (
+      <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
+        <ScreenHeader kicker="STATS" title="Le palmarès."/>
+        <div style={{ padding: '24px 18px', color: '#949494', fontSize: 14, lineHeight: 1.6 }}>
+          <Mono color="#949494" size={11} tracking="1.5px">AUCUNE PARTIE POUR LE MOMENT</Mono>
+          <p style={{ marginTop: 12 }}>
+            Lance une partie depuis l'onglet « Parties ». Les stats des joueurs s'agrègent dès la première partie terminée.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const ratioOverall = top ? top.ratio : 0;
+
   return (
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
-      <ScreenHeader kicker="STATS · 2026" title="Le palmarès."/>
+      <ScreenHeader kicker="STATS" title="Le palmarès."/>
 
       <div style={{ padding: '14px 18px 24px' }}>
-        {/* Personal summary tile */}
         <div style={{ background: '#ffec3b', color: '#000', borderRadius: 24, padding: 22, marginBottom: 14 }}>
-          <Mono color="rgba(0,0,0,0.65)" size={10} tracking="1.5px">VOTRE SAISON · 24 PARTIES</Mono>
+          <Mono color="rgba(0,0,0,0.65)" size={10} tracking="1.5px">
+            VOS PARTIES · {totalGames}
+          </Mono>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
             <div>
-              <Display size={64}>17</Display>
-              <Mono color="#000" size={11} tracking="1.5px" weight={700}>VICTOIRES</Mono>
+              <Display size={64}>{finished}</Display>
+              <Mono color="#000" size={11} tracking="1.5px" weight={700}>TERMINÉES</Mono>
             </div>
             <div>
-              <Display size={64}>71%</Display>
-              <Mono color="#000" size={11} tracking="1.5px" weight={700}>RATIO</Mono>
+              <Display size={64}>{live}</Display>
+              <Mono color="#000" size={11} tracking="1.5px" weight={700}>EN COURS</Mono>
             </div>
           </div>
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(0,0,0,0.2)' }}>
-            <Mono color="rgba(0,0,0,0.7)" size={10} tracking="1.5px" weight={500}>
-              MEILLEURE SÉRIE · 6 VICTOIRES D'AFFILÉE
-            </Mono>
-          </div>
+          {bestStreakRow && bestStreakRow.bestStreak >= 2 && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(0,0,0,0.2)' }}>
+              <Mono color="rgba(0,0,0,0.7)" size={10} tracking="1.5px" weight={500}>
+                MEILLEURE SÉRIE · {bestStreakRow.name.toUpperCase()} · {bestStreakRow.bestStreak} VICTOIRES D'AFFILÉE
+              </Mono>
+            </div>
+          )}
         </div>
 
-        {/* Leaderboard */}
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6, marginTop: 22 }}>
-          <Display size={28}>Boulodrome</Display>
-          <Mono color="#949494" size={10} tracking="1.5px" weight={500}>CLUB · 6 JOUEURS</Mono>
+          <Display size={28}>Joueurs</Display>
+          <Mono color="#949494" size={10} tracking="1.5px" weight={500}>
+            {stats.length} JOUEUR{stats.length > 1 ? 'S' : ''}
+          </Mono>
         </div>
-        <div>
-          {PLAYER_STATS.map((p, i) => (
-            <div key={p.name} style={{
-              display: 'grid', gridTemplateColumns: '32px 1fr auto auto', gap: 12,
-              padding: '14px 0', borderBottom: i === PLAYER_STATS.length - 1 ? 'none' : '1px solid #313131',
-              alignItems: 'center',
-            }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, lineHeight: 0.9, color: i === 0 ? '#3cffd0' : '#fff' }}>
-                {i+1}
+
+        {stats.length === 0 ? (
+          <Mono color="#949494" size={12} style={{ display: 'block', marginTop: 16, lineHeight: 1.6 }}>
+            Aucune partie terminée pour le moment. Termine une partie pour voir le classement s'enrichir.
+          </Mono>
+        ) : (
+          <div>
+            {stats.map((p, i) => (
+              <div key={p.name} style={{
+                display: 'grid', gridTemplateColumns: '32px 1fr auto auto', gap: 12,
+                padding: '14px 0', borderBottom: i === stats.length - 1 ? 'none' : '1px solid #313131',
+                alignItems: 'center',
+              }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, lineHeight: 0.9, color: i === 0 ? '#3cffd0' : '#fff' }}>
+                  {i + 1}
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</div>
+                  {p.bestStreak >= 2 && (
+                    <Mono color="#949494" size={9} tracking="1.5px" weight={500}>
+                      MEILLEURE SÉRIE · {p.bestStreak}
+                    </Mono>
+                  )}
+                </div>
+                <Mono color="#949494" size={10} tracking="1.1px" weight={500}>{p.wins}/{p.played}</Mono>
+                <div style={{ minWidth: 48, textAlign: 'right' }}>
+                  <Display size={20} color={p.ratio >= 60 ? '#3cffd0' : '#fff'}>{p.ratio}%</Display>
+                </div>
               </div>
-              <div>
-                <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</div>
-                <Mono color="#949494" size={9} tracking="1.5px" weight={500}>{p.role.toUpperCase()}</Mono>
-              </div>
-              <Mono color="#949494" size={10} tracking="1.1px" weight={500}>{p.wins}/{p.played}</Mono>
-              <div style={{ minWidth: 48, textAlign: 'right' }}>
-                <Display size={20} color={p.ratio >= 60 ? '#3cffd0' : '#fff'}>{p.ratio}%</Display>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

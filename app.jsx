@@ -285,7 +285,7 @@ export function App() {
       content = <PhotoScreen onBack={() => { setTab('home'); go({ name: 'home' }); }}/>;
       break;
     case 'stats':
-      content = <StatsScreen lang={LANG}/>;
+      content = <StatsScreen lang={LANG} games={displayGames}/>;
       break;
     default:
       content = <HomeScreen games={displayGames} onOpen={() => {}} onNew={() => {}} lang={LANG}/>;
@@ -408,19 +408,25 @@ export function App() {
         </div>
       )}
       <main style={{
-        flex: 1, width: '100%', maxWidth: 480, margin: '0 auto',
-        display: 'flex', flexDirection: 'column', minHeight: '100vh',
+        width: '100%', maxWidth: 480, margin: '0 auto',
+        minHeight: '100dvh',
+        paddingBottom: noTabs
+          ? 'env(safe-area-inset-bottom)'
+          : 'calc(72px + env(safe-area-inset-bottom))',
       }}>
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-          {content}
-        </div>
-        {!noTabs && (
-          <div style={{ flexShrink: 0, paddingBottom: 18 }}>
+        {content}
+      </main>
+      {!noTabs && (
+        <div style={{
+          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30,
+          background: 'var(--canvas-black)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}>
+          <div style={{ maxWidth: 480, margin: '0 auto' }}>
             <TabBar active={tab} onChange={onTab} lang={LANG}/>
           </div>
-        )}
-        {noTabs && <div style={{ flexShrink: 0, height: 18 }}/>}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
