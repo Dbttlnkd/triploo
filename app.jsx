@@ -15,11 +15,10 @@ import {
   signUpWithUsername,
   validateUsername,
 } from './lib/auth.js';
-import { IOSDevice } from './ios-frame.jsx';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakButton,
 } from './tweaks-panel.jsx';
-import { Eyebrow, Display, Mono, Whisper, PillBtn, TabBar } from './ui-kit.jsx';
+import { Mono, Display, TabBar } from './ui-kit.jsx';
 import { HomeScreen, CreateScreen, StatsScreen } from './screen-home.jsx';
 import { LiveScreen } from './screen-live.jsx';
 import { SpectatorScreen, PhotoScreen, SchemaScreen } from './screen-extras.jsx';
@@ -308,8 +307,8 @@ export function App() {
   return (
     <div style={{
       width: '100%', minHeight: '100vh',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#070707', padding: 24, gap: 28, flexWrap: 'wrap',
+      display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+      background: '#070707',
     }}>
       {remote && authPhase !== 'ready' && (
         <div style={{
@@ -419,58 +418,20 @@ export function App() {
           {loadErr}
         </div>
       )}
-      <IOSDevice width={392} height={848} dark>
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ height: 54, flexShrink: 0 }}/>
-          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-            {content}
-          </div>
-          {!noTabs && (
-            <div style={{ flexShrink: 0, paddingBottom: 18 }}>
-              <TabBar active={tab} onChange={onTab} lang={tweaks.language}/>
-            </div>
-          )}
-          {noTabs && <div style={{ flexShrink: 0, height: 18 }}/>}
-        </div>
-      </IOSDevice>
-
-      <aside style={{
-        maxWidth: 360, color: '#fff', display: 'flex', flexDirection: 'column', gap: 16,
+      <main style={{
+        flex: 1, width: '100%', maxWidth: 480, margin: '0 auto',
+        display: 'flex', flexDirection: 'column', minHeight: '100vh',
       }}>
-        <div>
-          <Whisper color="#949494">Triploo · prototype 0.1</Whisper>
-          <div style={{ marginTop: 6 }}>
-            <Display size={48} style={{ letterSpacing: '-0.5px', lineHeight: 0.9 }}>Pétanque, en direct.</Display>
-          </div>
-          <p style={{ color: '#949494', fontSize: 14, lineHeight: 1.6, marginTop: 12 }}>
-            Suivi de partie au pouce, vue spectateur en temps réel, et une IA qui tranche le « qui pointe ». Hi-fi clickable prototype, dans le vocabulaire visuel du Verge.
-          </p>
-          {remote && (
-            <Mono color="#3cffd0" size={11} style={{ marginTop: 8 }}>Supabase : parties & mènes synchronisées</Mono>
-          )}
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          {content}
         </div>
-
-        <div style={{ border: '1px solid #309875', borderRadius: 20, padding: 18 }}>
-          <Eyebrow color="#3cffd0">À EXPLORER</Eyebrow>
-          <ul style={{ margin: '10px 0 0', paddingLeft: 16, color: '#fff', fontSize: 13, lineHeight: 1.7 }}>
-            <li>Tap sur la partie en direct → écran scoring</li>
-            <li>Tap sur une équipe → grille +1 à +6</li>
-            <li>« Diffuser » dans l'écran scoring → vue spectateur</li>
-            <li>Onglet « Qui pointe » → analyse photo simulée</li>
-            <li>Schéma DB → bouton ci-dessous</li>
-          </ul>
-          <div style={{ marginTop: 14 }}>
-            <PillBtn variant="ghost" icon="arrow" onClick={() => go({ name: 'schema' })}>Voir le schéma DB</PillBtn>
+        {!noTabs && (
+          <div style={{ flexShrink: 0, paddingBottom: 18 }}>
+            <TabBar active={tab} onChange={onTab} lang={tweaks.language}/>
           </div>
-        </div>
-
-        <div style={{ background: '#ffec3b', color: '#000', borderRadius: 20, padding: 18 }}>
-          <Mono color="rgba(0,0,0,0.65)" size={10} tracking="1.5px">RAPPEL</Mono>
-          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 18, lineHeight: 1.2, marginTop: 8 }}>
-            Une mène rapporte au max +6 — six boules, toutes plus proches que la meilleure de l'adversaire.
-          </div>
-        </div>
-      </aside>
+        )}
+        {noTabs && <div style={{ flexShrink: 0, height: 18 }}/>}
+      </main>
 
       <TweaksPanel title="Tweaks">
         <TweakSection title="Langue">
