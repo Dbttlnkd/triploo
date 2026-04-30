@@ -388,7 +388,7 @@ const SchemaScreen = ({ onBack }) => (
       <section>
         <Eyebrow color="#3cffd0">AUTH</Eyebrow>
         <p style={{ marginTop: 10, color: '#fff', fontSize: 14, lineHeight: 1.5 }}>
-          Magic link (Supabase Auth). Pas de mot de passe — un lien par email, expirant à 1h. Les spectateurs n'ont pas besoin de compte : token public, lecture seule.
+          Username + mot de passe (Supabase Auth). L'email est synthétisé à partir du username, jamais affiché à l'utilisateur. Les spectateurs n'ont pas besoin de compte : token public, lecture seule.
         </p>
       </section>
 
