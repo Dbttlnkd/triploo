@@ -85,17 +85,12 @@ const LiveScreen = ({
     }}>
       {/* Compact top bar */}
       <div style={{ padding: '14px 18px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{
-          background: 'transparent', border: 0, color: '#fff', cursor: 'pointer',
-          padding: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}>
-          <Icon name="back" size={16}/>
-          <Mono color="#fff" size={11}>Quitter</Mono>
-        </button>
+        <span style={{ minWidth: 80 }} aria-hidden="true"/>
         <LiveDot/>
         <button onClick={onShare} style={{
           background: 'transparent', border: 0, color: '#fff', cursor: 'pointer',
           padding: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
+          minWidth: 80, justifyContent: 'flex-end',
         }}>
           <Icon name="share" size={16}/>
           <Mono color="#fff" size={11}>Diffuser</Mono>
@@ -330,14 +325,7 @@ const EndScreen = ({ game, rounds, score, onBack }) => {
 
   return (
     <div style={{ background: wColor.bg, color: wColor.fg, minHeight: '100%', padding: '20px 18px 24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button onClick={onBack} style={{
-          background: 'transparent', border: 0, color: wColor.fg, cursor: 'pointer',
-          padding: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}>
-          <Icon name="back" size={16} color={wColor.fg}/>
-          <Mono color={wColor.fg} size={11}>Accueil</Mono>
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <Mono color={wColor.fg} size={10} tracking="1.5px" weight={500}>FIN · {rounds.length} MÈNES</Mono>
       </div>
 
