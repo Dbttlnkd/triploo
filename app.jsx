@@ -73,6 +73,18 @@ export function App() {
 
   const liveGame = displayGames.find((g) => g.status === 'live');
 
+  const nextGameName = React.useMemo(() => {
+    let max = 0;
+    for (const g of displayGames) {
+      const m = String(g.name || '').match(/^Partie #(\d+)$/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (Number.isFinite(n) && n > max) max = n;
+      }
+    }
+    return `Partie #${max + 1}`;
+  }, [displayGames]);
+
   React.useEffect(() => {
     if (!remote || route.name !== 'live' || !route.gameId) return undefined;
     const off = subscribeRounds(route.gameId, (g) => {
@@ -212,6 +224,7 @@ export function App() {
           onCreate={handleCreate}
           lang={LANG}
           playerSuggestions={playerSuggestions}
+          defaultName={nextGameName}
         />
       );
       break;
