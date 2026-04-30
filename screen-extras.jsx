@@ -4,6 +4,7 @@ import { TEAM_COLORS, currentScore, Icon } from './app-state.jsx';
 import {
   Mono, Display, LiveDot, Eyebrow, ScreenHeader, PillBtn,
 } from './ui-kit.jsx';
+import { getSupabase, isSupabaseConfigured } from './lib/supabase.js';
 
 // ─────────────────────────────────────────────────────────────
 // Spectator live view (read-only)
@@ -133,23 +134,92 @@ const SpectatorScreen = ({ game, onBack }) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Photo analyzer "qui pointe?"
+// Photo analyzer "qui pointe?" — calls the who-points edge function
 // ─────────────────────────────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const comma = dataUrl.indexOf(',');
+      resolve(comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl);
+    };
+    reader.onerror = () => reject(reader.error || new Error('FileReader error'));
+    reader.readAsDataURL(file);
+  });
+}
+
 const PhotoScreen = ({ onBack }) => {
-  const [stage, setStage] = React.useState('upload'); // upload | analyzing | result
-  const [progress, setProgress] = React.useState(0);
+  const [stage, setStage] = React.useState('upload'); // upload | analyzing | result | error
+  const [previewUrl, setPreviewUrl] = React.useState(null);
+  const [analysis, setAnalysis] = React.useState(null);
+  const [errorMsg, setErrorMsg] = React.useState(null);
+  const cameraRef = React.useRef(null);
+  const galleryRef = React.useRef(null);
 
   React.useEffect(() => {
-    if (stage !== 'analyzing') return;
-    setProgress(0);
-    const id = setInterval(() => setProgress(p => Math.min(100, p + 8)), 120);
-    const done = setTimeout(() => setStage('result'), 1700);
-    return () => { clearInterval(id); clearTimeout(done); };
-  }, [stage]);
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
+
+  const reset = () => {
+    setStage('upload');
+    setAnalysis(null);
+    setErrorMsg(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+  };
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    if (!isSupabaseConfigured()) {
+      setErrorMsg("Supabase n'est pas configuré côté client.");
+      setStage('error');
+      return;
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(URL.createObjectURL(file));
+    setStage('analyzing');
+    setAnalysis(null);
+    setErrorMsg(null);
+
+    try {
+      const image_base64 = await fileToBase64(file);
+      const sb = getSupabase();
+      const { data, error } = await sb.functions.invoke('who-points', {
+        body: { image_base64, mime: file.type || 'image/jpeg' },
+      });
+      if (error) {
+        setErrorMsg(error.message || 'Erreur lors de l’appel à l’IA');
+        setStage('error');
+        return;
+      }
+      if (!data || data.ok === false) {
+        setErrorMsg(data?.notes || data?.error || 'Analyse impossible.');
+        setStage('error');
+        return;
+      }
+      setAnalysis(data);
+      setStage('result');
+    } catch (e) {
+      setErrorMsg(e?.message || String(e));
+      setStage('error');
+    }
+  };
+
+  const onPick = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) handleFile(file);
+  };
 
   return (
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
       <ScreenHeader kicker="ANALYSE · CLAUDE VISION" title="Qui pointe ?" onBack={onBack}/>
+
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onPick} style={{ display: 'none' }}/>
+      <input ref={galleryRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }}/>
 
       <div style={{ padding: '14px 18px 24px' }}>
         {stage === 'upload' && (
@@ -174,8 +244,8 @@ const PhotoScreen = ({ onBack }) => {
               </div>
             </div>
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <PillBtn variant="primary" wide icon="camera" onClick={() => setStage('analyzing')}>Prendre la photo</PillBtn>
-              <PillBtn variant="ghost" wide icon="image" onClick={() => setStage('analyzing')}>Choisir dans la galerie</PillBtn>
+              <PillBtn variant="primary" wide icon="camera" onClick={() => cameraRef.current?.click()}>Prendre la photo</PillBtn>
+              <PillBtn variant="ghost" wide icon="image" onClick={() => galleryRef.current?.click()}>Choisir dans la galerie</PillBtn>
             </div>
 
             <div style={{ marginTop: 22, padding: 16, border: '1px solid #309875', borderRadius: 20 }}>
@@ -184,98 +254,157 @@ const PhotoScreen = ({ onBack }) => {
                 margin: '12px 0 0', paddingLeft: 18, color: '#fff',
                 fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6,
               }}>
-                <li>L'IA repère le cochonnet (jaune)</li>
-                <li>Mesure la distance pixel/perspective de chaque boule</li>
-                <li>Classe les boules de la plus proche à la plus éloignée</li>
-                <li>Identifie l'équipe au point — et de combien</li>
+                <li>L'IA repère le cochonnet</li>
+                <li>Distingue les deux jeux de boules par leur motif</li>
+                <li>Classe les boules visibles, de la plus proche à la plus éloignée</li>
+                <li>Annonce qui pointe et de combien</li>
               </ol>
             </div>
           </>
         )}
 
         {stage === 'analyzing' && (
-          <div style={{ paddingTop: 20 }}>
-            {/* Simulated photo */}
+          <div style={{ paddingTop: 4 }}>
             <div style={{
               borderRadius: 24, overflow: 'hidden', position: 'relative',
-              background: '#5e4a2b', aspectRatio: '4/3', border: '1px solid #313131',
+              background: '#131313', aspectRatio: '4/3', border: '1px solid #313131',
             }}>
-              <BouleDiagram analyzing/>
+              {previewUrl && (
+                <img src={previewUrl} alt="terrain" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}/>
+              )}
               <div style={{
-                position: 'absolute', inset: 0, background: 'rgba(19,19,19,0.45)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 16,
+                position: 'absolute', inset: 0, background: 'rgba(19,19,19,0.55)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
               }}>
                 <div style={{
                   width: 56, height: 56, borderRadius: '50%', border: '2px solid #3cffd0',
                   borderTopColor: 'transparent', animation: 'triploo-spin 900ms linear infinite',
                 }}/>
-                <Mono color="#3cffd0" size={11} tracking="1.9px">ANALYSE EN COURS · {progress}%</Mono>
+                <Mono color="#3cffd0" size={11} tracking="1.9px">ANALYSE EN COURS</Mono>
               </div>
             </div>
             <div style={{ marginTop: 18 }}>
               <Mono color="#949494" size={10} tracking="1.5px" weight={500}>
-                CLAUDE VISION · MESURE DES DISTANCES · IDENTIFICATION DES ÉQUIPES
+                CLAUDE SONNET 4.6 · MESURE DES DISTANCES · IDENTIFICATION DES ÉQUIPES
               </Mono>
             </div>
           </div>
         )}
 
-        {stage === 'result' && (
+        {stage === 'error' && (
           <div style={{ paddingTop: 4 }}>
-            {/* Verdict tile */}
-            <div style={{ background: '#3cffd0', color: '#000', borderRadius: 24, padding: '20px 22px' }}>
-              <Mono color="rgba(0,0,0,0.6)" size={11} tracking="1.9px">VERDICT</Mono>
+            <div style={{ background: '#5200ff', color: '#fff', borderRadius: 24, padding: '20px 22px' }}>
+              <Mono color="rgba(255,255,255,0.7)" size={11} tracking="1.9px">ANALYSE INTERROMPUE</Mono>
               <div style={{ marginTop: 8 }}>
-                <Display size={44}>Mint pointe.</Display>
+                <Display size={28}>On rejoue ?</Display>
               </div>
-              <div style={{ marginTop: 10 }}>
-                <Mono color="#000" size={11} tracking="1.5px" weight={700}>
-                  3 BOULES MINT AVANT LA PREMIÈRE ULTRAVIOLET
-                </Mono>
-              </div>
+              <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.5 }}>{errorMsg}</p>
             </div>
-
-            {/* Annotated photo */}
-            <div style={{
-              borderRadius: 24, overflow: 'hidden', marginTop: 14,
-              background: '#5e4a2b', aspectRatio: '4/3', border: '1px solid #313131', position: 'relative',
-            }}>
-              <BouleDiagram annotated/>
-            </div>
-
-            {/* Ranking */}
-            <div style={{ marginTop: 16 }}>
-              <Mono color="#949494" size={10} tracking="1.5px">CLASSEMENT DES BOULES</Mono>
-              <div style={{ marginTop: 10 }}>
-                {[
-                  { rank: 1, color: 'mint', dist: 8, team: 'Mint' },
-                  { rank: 2, color: 'mint', dist: 14, team: 'Mint' },
-                  { rank: 3, color: 'mint', dist: 22, team: 'Mint' },
-                  { rank: 4, color: 'violet', dist: 31, team: 'Ultraviolet' },
-                  { rank: 5, color: 'violet', dist: 38, team: 'Ultraviolet' },
-                  { rank: 6, color: 'mint', dist: 47, team: 'Mint' },
-                ].map((b, i) => (
-                  <div key={i} style={{
-                    display: 'grid', gridTemplateColumns: '24px 24px 1fr auto', gap: 12,
-                    padding: '10px 0', borderBottom: i === 5 ? 'none' : '1px solid #313131',
-                    alignItems: 'center',
-                  }}>
-                    <Display size={20} color={b.rank <= 3 ? '#3cffd0' : '#fff'}>{b.rank}</Display>
-                    <span style={{ width: 18, height: 18, borderRadius: '50%', background: TEAM_COLORS[b.color].bg }}/>
-                    <Mono color="#fff" size={11} tracking="1.1px">{b.team}</Mono>
-                    <Mono color="#949494" size={10} tracking="1.5px" weight={500}>{b.dist} CM</Mono>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <PillBtn variant="primary" wide icon="check">Ajouter +3 à Mint</PillBtn>
-              <PillBtn variant="ghost" wide onClick={() => setStage('upload')}>Refaire une photo</PillBtn>
+            <div style={{ marginTop: 20 }}>
+              <PillBtn variant="primary" wide onClick={reset}>Réessayer</PillBtn>
             </div>
           </div>
         )}
+
+        {stage === 'result' && analysis && (
+          <PhotoResult analysis={analysis} previewUrl={previewUrl} onReset={reset}/>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const PhotoResult = ({ analysis, previewUrl, onReset }) => {
+  const verdict = analysis.verdict || {};
+  const winner = verdict.winner;
+  const lead = verdict.lead_count;
+  const ranking = Array.isArray(analysis.ranking) ? analysis.ranking : [];
+  const winnerLabel = winner === 'A'
+    ? (analysis.team_a || 'Équipe A')
+    : winner === 'B'
+      ? (analysis.team_b || 'Équipe B')
+      : null;
+
+  return (
+    <div style={{ paddingTop: 4 }}>
+      <div style={{ background: '#3cffd0', color: '#000', borderRadius: 24, padding: '20px 22px' }}>
+        <Mono color="rgba(0,0,0,0.6)" size={11} tracking="1.9px">VERDICT</Mono>
+        <div style={{ marginTop: 8 }}>
+          <Display size={40}>{winnerLabel ? `${winnerLabel} pointe.` : 'Égalité.'}</Display>
+        </div>
+        {(typeof lead === 'number' && lead > 0) && (
+          <div style={{ marginTop: 10 }}>
+            <Mono color="#000" size={11} tracking="1.5px" weight={700}>
+              {lead} BOULE{lead > 1 ? 'S' : ''} AVANT LA PREMIÈRE ADVERSE
+            </Mono>
+          </div>
+        )}
+        {verdict.confidence && (
+          <div style={{ marginTop: 8 }}>
+            <Mono color="rgba(0,0,0,0.55)" size={10} tracking="1.5px" weight={500}>
+              CONFIANCE · {String(verdict.confidence).toUpperCase()}
+            </Mono>
+          </div>
+        )}
+      </div>
+
+      {previewUrl && (
+        <div style={{
+          borderRadius: 24, overflow: 'hidden', marginTop: 14,
+          background: '#131313', aspectRatio: '4/3', border: '1px solid #313131',
+        }}>
+          <img src={previewUrl} alt="terrain" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+        </div>
+      )}
+
+      {analysis.notes && (
+        <p style={{ marginTop: 14, color: '#949494', fontSize: 13, lineHeight: 1.5 }}>{analysis.notes}</p>
+      )}
+
+      {(analysis.team_a || analysis.team_b) && (
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ border: '1px solid #313131', borderRadius: 14, padding: 12 }}>
+            <Mono color="#949494" size={10} tracking="1.5px" weight={500}>ÉQUIPE A</Mono>
+            <div style={{ marginTop: 6, color: '#fff', fontSize: 13, lineHeight: 1.4 }}>{analysis.team_a || '—'}</div>
+          </div>
+          <div style={{ border: '1px solid #313131', borderRadius: 14, padding: 12 }}>
+            <Mono color="#949494" size={10} tracking="1.5px" weight={500}>ÉQUIPE B</Mono>
+            <div style={{ marginTop: 6, color: '#fff', fontSize: 13, lineHeight: 1.4 }}>{analysis.team_b || '—'}</div>
+          </div>
+        </div>
+      )}
+
+      {ranking.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <Mono color="#949494" size={10} tracking="1.5px">CLASSEMENT DES BOULES</Mono>
+          <div style={{ marginTop: 10 }}>
+            {ranking.map((b, i) => {
+              const isWinnerSide = b.team === winner;
+              return (
+                <div key={i} style={{
+                  display: 'grid', gridTemplateColumns: '28px 1fr auto auto', gap: 12,
+                  padding: '10px 0', borderBottom: i === ranking.length - 1 ? 'none' : '1px solid #313131',
+                  alignItems: 'center',
+                }}>
+                  <Display size={20} color={i === 0 ? '#3cffd0' : '#fff'}>{b.rank ?? i + 1}</Display>
+                  <Mono color="#fff" size={11} tracking="1.1px">
+                    {b.team === 'A' ? (analysis.team_a || 'Équipe A') : b.team === 'B' ? (analysis.team_b || 'Équipe B') : '—'}
+                  </Mono>
+                  {b.color_desc ? (
+                    <Mono color="#949494" size={10} tracking="1.1px" weight={500}>{b.color_desc.toUpperCase()}</Mono>
+                  ) : <span/>}
+                  <Mono color={isWinnerSide ? '#3cffd0' : '#949494'} size={10} tracking="1.5px" weight={500}>
+                    {typeof b.estimated_cm === 'number' ? `~${b.estimated_cm} CM` : '—'}
+                  </Mono>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 20 }}>
+        <PillBtn variant="ghost" wide onClick={onReset}>Refaire une photo</PillBtn>
       </div>
     </div>
   );
