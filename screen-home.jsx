@@ -196,15 +196,17 @@ function clampTeamPlayers(team, min, max) {
   return { ...team, players };
 }
 
-const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
+const PLAYER_SUGGESTIONS_LIST_ID = 'triploo-player-suggestions';
+
+const CreateScreen = ({ onCancel, onCreate, lang = 'fr', playerSuggestions = [] }) => {
   const t = I18N[lang];
   const [format, setFormat] = React.useState('doublette');
   const [target, setTarget] = React.useState(13);
   const [bestOf, setBestOf] = React.useState(1);
   const [name, setName] = React.useState('Tournoi du soir');
   const [place, setPlace] = React.useState('Boulodrome de Saint-Tropez');
-  const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: ['Jean-Mi', 'Bruno'] });
-  const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: ['Karim', 'Sandra'] });
+  const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: ['', ''] });
+  const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: ['', ''] });
 
   const b = formatPlayerBounds(format);
   React.useEffect(() => {
@@ -246,6 +248,12 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
       <ScreenHeader kicker="NOUVELLE PARTIE" title="On lance ?" onBack={onCancel}/>
 
+      {playerSuggestions.length > 0 && (
+        <datalist id={PLAYER_SUGGESTIONS_LIST_ID}>
+          {playerSuggestions.map((n) => <option key={n} value={n}/>)}
+        </datalist>
+      )}
+
       <div style={{ padding: '18px 18px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Format */}
         <section>
@@ -279,11 +287,11 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
         <section>
           <Mono color="#949494" size={10} tracking="1.5px">Équipes</Mono>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-            <TeamCard team={teamA} onChange={setTeamA} accent="A" minPlayers={b.minA} maxPlayers={b.maxA}/>
+            <TeamCard team={teamA} onChange={setTeamA} accent="A" minPlayers={b.minA} maxPlayers={b.maxA} suggestionsListId={PLAYER_SUGGESTIONS_LIST_ID} suggestionsCount={playerSuggestions.length}/>
             <div style={{ textAlign: 'center' }}>
               <Mono color="#5200ff" size={11} tracking="1.8px" weight={700}>VS</Mono>
             </div>
-            <TeamCard team={teamB} onChange={setTeamB} accent="B" minPlayers={b.minB} maxPlayers={b.maxB}/>
+            <TeamCard team={teamB} onChange={setTeamB} accent="B" minPlayers={b.minB} maxPlayers={b.maxB} suggestionsListId={PLAYER_SUGGESTIONS_LIST_ID} suggestionsCount={playerSuggestions.length}/>
           </div>
         </section>
 
@@ -344,7 +352,7 @@ const CreateScreen = ({ onCancel, onCreate, lang = 'fr' }) => {
   );
 };
 
-const TeamCard = ({ team, onChange, accent, minPlayers = 1, maxPlayers = 3 }) => {
+const TeamCard = ({ team, onChange, accent, minPlayers = 1, maxPlayers = 3, suggestionsListId, suggestionsCount = 0 }) => {
   const c = TEAM_COLORS[team.color];
   const setName = (v) => onChange({ ...team, name: v });
   const setPlayer = (idx, v) => {
@@ -354,7 +362,7 @@ const TeamCard = ({ team, onChange, accent, minPlayers = 1, maxPlayers = 3 }) =>
   };
   const addPlayer = () => {
     if (team.players.length >= maxPlayers) return;
-    onChange({ ...team, players: [...team.players, `Joueur ${team.players.length + 1}`] });
+    onChange({ ...team, players: [...team.players, ''] });
   };
   const removePlayer = (idx) => {
     if (team.players.length <= minPlayers) return;
@@ -393,10 +401,19 @@ const TeamCard = ({ team, onChange, accent, minPlayers = 1, maxPlayers = 3 }) =>
             color: c.fg, borderRadius: 40, padding: '6px 10px',
           }}>
             <Icon name="user" size={11} color={c.fg}/>
-            <input value={p} onChange={(e) => setPlayer(i, e.target.value)} style={{
-              flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: c.fg,
-              fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
-            }}/>
+            <input
+              value={p}
+              onChange={(e) => setPlayer(i, e.target.value)}
+              list={suggestionsCount > 0 ? suggestionsListId : undefined}
+              placeholder={`Joueur ${i + 1}`}
+              autoComplete="off"
+              autoCapitalize="words"
+              spellCheck={false}
+              style={{
+                flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: c.fg,
+                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
+              }}
+            />
             <button type="button" disabled={team.players.length <= minPlayers} onClick={() => removePlayer(i)} style={{
               background: 'transparent', border: 0, color: c.fg, cursor: team.players.length <= minPlayers ? 'not-allowed' : 'pointer',
               opacity: team.players.length <= minPlayers ? 0.35 : 1, fontSize: 14, padding: '0 4px',
