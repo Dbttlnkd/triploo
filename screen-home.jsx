@@ -223,13 +223,42 @@ function uiFormatFromTeamSizes(a, b) {
   return 'doublette';
 }
 
-const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [] }) => {
+const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [], defaultName = 'Partie #1' }) => {
   const [target, setTarget] = React.useState(13);
   const [bestOf, setBestOf] = React.useState(1);
-  const [name, setName] = React.useState('Tournoi du soir');
-  const [place, setPlace] = React.useState('Boulodrome de Saint-Tropez');
+  const [name, setName] = React.useState(defaultName);
+  const [place, setPlace] = React.useState('');
+  const [placeBusy, setPlaceBusy] = React.useState(false);
   const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: [''] });
   const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: [''] });
+
+  React.useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
+    let cancelled = false;
+    setPlaceBusy(true);
+    const onSuccess = async (pos) => {
+      try {
+        const { latitude, longitude } = pos.coords;
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=14&addressdetails=1`;
+        const r = await fetch(url, { headers: { 'Accept-Language': 'fr' } });
+        if (!r.ok) throw new Error(`reverse-geocode ${r.status}`);
+        const data = await r.json();
+        if (cancelled) return;
+        const a = data.address || {};
+        const city = a.city || a.town || a.village || a.hamlet || a.suburb || a.county || '';
+        const country = a.country || '';
+        const human = [city, country].filter(Boolean).join(', ');
+        setPlace((prev) => (prev ? prev : human));
+      } catch {
+        // best-effort: keep field empty if geocoding fails
+      } finally {
+        if (!cancelled) setPlaceBusy(false);
+      }
+    };
+    const onError = () => { if (!cancelled) setPlaceBusy(false); };
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, { timeout: 8000, maximumAge: 60000 });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleLaunch = () => {
     const pa = teamA.players.map((p) => p.trim()).filter(Boolean);
@@ -309,7 +338,13 @@ const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [] }) => {
           <Mono color="#949494" size={10} tracking="1.5px">Détails</Mono>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
             <Field label="Nom" value={name} onChange={setName}/>
-            <Field label="Lieu" value={place} onChange={setPlace} icon="location"/>
+            <Field
+              label="Lieu"
+              value={place}
+              onChange={setPlace}
+              icon="location"
+              placeholder={placeBusy ? 'Localisation…' : 'Boulodrome, ville…'}
+            />
           </div>
         </section>
 
@@ -484,7 +519,7 @@ const TeamCard = ({ team, onChange, accent, suggestions = [] }) => {
   );
 };
 
-const Field = ({ label, value, onChange, icon }) => (
+const Field = ({ label, value, onChange, icon, placeholder }) => (
   <div style={{
     background: 'var(--canvas-black)', border: '1px solid #fff', borderRadius: 8,
     padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
@@ -492,7 +527,7 @@ const Field = ({ label, value, onChange, icon }) => (
     {icon && <Icon name={icon} size={16} color="#949494"/>}
     <div style={{ flex: 1 }}>
       <Mono color="#949494" size={9} tracking="1.5px" weight={500}>{label.toUpperCase()}</Mono>
-      <input value={value} onChange={e => onChange(e.target.value)} style={{
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{
         display: 'block', width: '100%', background: 'transparent', border: 0, outline: 0,
         color: '#fff', fontFamily: 'var(--font-sans)', fontSize: 16, marginTop: 2, padding: 0,
       }}/>
