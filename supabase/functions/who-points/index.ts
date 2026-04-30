@@ -3,6 +3,9 @@
 // boules by distance to the cochonnet, and returns a structured verdict.
 //
 // Requires the ANTHROPIC_API_KEY secret to be set in the Supabase project.
+// verify_jwt is disabled because the app uses the modern publishable key
+// (sb_publishable_...) which is not a JWT; auth is enforced by the
+// server-side ANTHROPIC_API_KEY and the open RLS policies match this stance.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
