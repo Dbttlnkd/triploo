@@ -558,15 +558,17 @@ function aggregatePlayerStats(games) {
   const bestStreak = new Map();
 
   for (const g of finished) {
-    g.teams.forEach((team) => {
+    g.teams.forEach((team, i) => {
       const isWinning = team.id === g.winner;
+      const teamPoints = Array.isArray(g.finalScore) ? (g.finalScore[i] || 0) : 0;
       for (const playerName of team.players || []) {
         const name = (playerName || '').trim();
         if (!name) continue;
 
-        if (!map.has(name)) map.set(name, { name, played: 0, wins: 0 });
+        if (!map.has(name)) map.set(name, { name, played: 0, wins: 0, points: 0 });
         const s = map.get(name);
         s.played += 1;
+        s.points += teamPoints;
         if (isWinning) {
           s.wins += 1;
           const next = (streak.get(name) || 0) + 1;
@@ -584,7 +586,12 @@ function aggregatePlayerStats(games) {
     ratio: s.played ? Math.round((s.wins / s.played) * 100) : 0,
     bestStreak: bestStreak.get(s.name) || 0,
   }));
-  rows.sort((a, b) => (b.ratio - a.ratio) || (b.wins - a.wins) || (b.played - a.played));
+  rows.sort((a, b) =>
+    (b.ratio - a.ratio) ||
+    (b.points - a.points) ||
+    (b.wins - a.wins) ||
+    (b.played - a.played)
+  );
   return rows;
 }
 
