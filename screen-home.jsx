@@ -338,6 +338,8 @@ const CreateScreen = ({
   events = [],
   defaultEventId = null,
   eventLocked = false,
+  myUserId = null,
+  myDisplayName = '',
 }) => {
   const [target, setTarget] = React.useState(13);
   const [bestOf, setBestOf] = React.useState(1);
@@ -362,13 +364,19 @@ const CreateScreen = ({
   const mergedSuggestions = React.useMemo(() => {
     const seen = new Set();
     const out = [];
+
+    const myName = (myDisplayName || '').trim();
+    if (myUserId && myName) {
+      out.push({ name: myName, userId: myUserId, isMember: true, isMe: true });
+      seen.add(myName.toLowerCase());
+    }
     for (const m of eventMembers) {
       const label = (m.displayName || '').trim();
       if (!label) continue;
       const key = label.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ name: label, userId: m.userId, isMember: true });
+      out.push({ name: label, userId: m.userId, isMember: true, isMe: m.userId === myUserId });
     }
     for (const n of playerSuggestions) {
       const label = (n || '').trim();
@@ -379,7 +387,7 @@ const CreateScreen = ({
       out.push({ name: label, userId: null, isMember: false });
     }
     return out;
-  }, [eventMembers, playerSuggestions]);
+  }, [eventMembers, playerSuggestions, myUserId, myDisplayName]);
 
   React.useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
@@ -652,9 +660,11 @@ function PlayerInput({ value, userId, onChange, placeholder, suggestions, color 
               {s.isMember && (
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3cffd0', flexShrink: 0 }}/>
               )}
-              <span>{s.name}</span>
+              <span>{s.name}{s.isMe ? ' (toi)' : ''}</span>
               {s.isMember && (
-                <span style={{ marginLeft: 'auto', color: '#3cffd0', fontSize: 9, letterSpacing: '1.2px' }}>MEMBRE</span>
+                <span style={{ marginLeft: 'auto', color: '#3cffd0', fontSize: 9, letterSpacing: '1.2px' }}>
+                  {s.isMe ? 'TOI' : 'MEMBRE'}
+                </span>
               )}
             </button>
           ))}
