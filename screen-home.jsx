@@ -39,6 +39,8 @@ const HomeScreen = ({
   onOpenEvent,
   onCreateEvent,
   onDeleteEvent,
+  onOpenAccount,
+  myDisplayName = '',
   lang = 'fr',
 }) => {
   const t = I18N[lang];
@@ -50,11 +52,33 @@ const HomeScreen = ({
     <div style={{ background: 'var(--canvas-black)', minHeight: '100%', paddingBottom: 24 }}>
       {/* Wordmark masthead */}
       <div style={{ padding: '18px 18px 0' }}>
-        <img
-          src="/triploo-logo.png"
-          alt="Triploo"
-          style={{ display: 'block', height: 124, width: 'auto', maxWidth: '100%' }}
-        />
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <img
+            src="/triploo-logo.png"
+            alt="Triploo"
+            style={{ display: 'block', height: 124, width: 'auto', maxWidth: '100%' }}
+          />
+          {(myDisplayName || onOpenAccount) && (
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              aria-label="Mon compte"
+              style={{
+                marginTop: 8, flexShrink: 0,
+                background: 'transparent', border: '1px solid #309875', color: '#fff',
+                borderRadius: 40, padding: '8px 12px', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                letterSpacing: '1.2px',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3cffd0' }}/>
+              <span style={{ textTransform: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {myDisplayName || 'Compte'}
+              </span>
+            </button>
+          )}
+        </div>
         <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{
             width: 10, height: 10, borderRadius: '50%', background: '#3cffd0',
