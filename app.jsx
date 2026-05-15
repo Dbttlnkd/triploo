@@ -5,7 +5,11 @@ import { isSupabaseConfigured } from './lib/supabase.js';
 import {
   fetchGames,
   fetchPlayerNames,
+  fetchEvents,
   createGameRemote,
+  createEventRemote,
+  deleteEventRemote,
+  finalizeEventRemote,
   addRoundRemote,
   undoLastRoundRemote,
   finalizeGameRemote,
@@ -16,6 +20,7 @@ import { Mono, Display, TabBar } from './ui-kit.jsx';
 import { HomeScreen, CreateScreen, StatsScreen } from './screen-home.jsx';
 import { LiveScreen } from './screen-live.jsx';
 import { SpectatorScreen, PhotoScreen } from './screen-extras.jsx';
+import { CreateEventScreen, EventDetailScreen } from './screen-events.jsx';
 
 const LANG = 'fr';
 const WIN_THRESHOLD = 13;
@@ -82,6 +87,7 @@ export function App() {
   const remote = isSupabaseConfigured();
 
   const [games, setGames] = React.useState(() => (remote ? [] : cloneDemoGames()));
+  const [events, setEvents] = React.useState([]);
   const [playerSuggestions, setPlayerSuggestions] = React.useState([]);
   const [loadErr, setLoadErr] = React.useState(null);
 
@@ -90,6 +96,16 @@ export function App() {
     try {
       const list = await fetchGames();
       setGames(list);
+    } catch (e) {
+      setLoadErr(e?.message || String(e));
+    }
+  }, [remote]);
+
+  const refreshEvents = React.useCallback(async () => {
+    if (!remote) return;
+    try {
+      const list = await fetchEvents();
+      setEvents(list);
     } catch (e) {
       setLoadErr(e?.message || String(e));
     }
@@ -108,8 +124,9 @@ export function App() {
   React.useEffect(() => {
     if (!remote) return;
     refreshGames();
+    refreshEvents();
     refreshPlayerSuggestions();
-  }, [remote, refreshGames, refreshPlayerSuggestions]);
+  }, [remote, refreshGames, refreshEvents, refreshPlayerSuggestions]);
 
   React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
 
@@ -131,6 +148,18 @@ export function App() {
     }
     return `Partie #${max + 1}`;
   }, [displayGames]);
+
+  const nextEventName = React.useMemo(() => {
+    let max = 0;
+    for (const e of events) {
+      const m = String(e.name || '').match(/^Événement #(\d+)$/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (Number.isFinite(n) && n > max) max = n;
+      }
+    }
+    return `Événement #${max + 1}`;
+  }, [events]);
 
   React.useEffect(() => {
     if (!remote || route.name !== 'live' || !route.gameId) return undefined;
@@ -168,6 +197,7 @@ export function App() {
       id,
       name: payload.name,
       place: payload.place,
+      eventId: payload.eventId || null,
       date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase(),
       format: payload.formatUi,
       target: payload.target,
@@ -245,7 +275,56 @@ export function App() {
     setTab((current) => (route.name === 'live' && route.gameId === gameId ? 'home' : current));
   };
 
+  const handleCreateEvent = async ({ name, place }) => {
+    if (!remote) {
+      const id = `local-event-${Date.now()}`;
+      const ev = { id, name, place, status: 'live', startedAt: '', date: '', started_at: null, finished_at: null, created_at: new Date().toISOString() };
+      setEvents((prev) => [ev, ...prev]);
+      go({ name: 'event-detail', eventId: id });
+      return;
+    }
+    try {
+      const ev = await createEventRemote({ name, place });
+      setEvents((prev) => [ev, ...prev.filter((x) => x.id !== ev.id)]);
+      go({ name: 'event-detail', eventId: ev.id });
+    } catch (e) {
+      setLoadErr(e?.message || String(e));
+      throw e;
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    if (!eventId) return;
+    if (typeof window !== 'undefined' && !window.confirm("Supprimer l'événement ? Les parties associées seront détachées (pas supprimées).")) return;
+    if (remote) {
+      try {
+        await deleteEventRemote(eventId);
+      } catch (e) {
+        setLoadErr(e?.message || String(e));
+        return;
+      }
+    }
+    setEvents((prev) => prev.filter((e) => e.id !== eventId));
+    setGames((prev) => prev.map((g) => (g.eventId === eventId ? { ...g, eventId: null } : g)));
+    setRoute((r) => (r.name === 'event-detail' && r.eventId === eventId ? { name: 'home' } : r));
+  };
+
+  const handleFinishEvent = async (eventId) => {
+    if (!eventId) return;
+    if (!remote) {
+      setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, status: 'archived', finished_at: new Date().toISOString() } : e)));
+      return;
+    }
+    try {
+      const ev = await finalizeEventRemote(eventId);
+      if (ev) setEvents((prev) => prev.map((e) => (e.id === ev.id ? ev : e)));
+    } catch (e) {
+      setLoadErr(e?.message || String(e));
+    }
+  };
+
   const resolveGame = (id) => displayGames.find((x) => x.id === id);
+  const resolveEvent = (id) => events.find((e) => e.id === id);
 
   let content = null;
   switch (route.name) {
@@ -253,6 +332,7 @@ export function App() {
       content = (
         <HomeScreen
           games={displayGames}
+          events={events}
           onOpen={(id) => {
             const g = resolveGame(id);
             if (!g) return;
@@ -260,6 +340,9 @@ export function App() {
           }}
           onNew={() => go({ name: 'create' })}
           onDelete={handleDeleteGame}
+          onOpenEvent={(id) => go({ name: 'event-detail', eventId: id })}
+          onCreateEvent={() => go({ name: 'event-create' })}
+          onDeleteEvent={handleDeleteEvent}
           lang={LANG}
         />
       );
@@ -267,14 +350,51 @@ export function App() {
     case 'create':
       content = (
         <CreateScreen
-          onCancel={() => go({ name: 'home' })}
+          onCancel={() => go(route.eventId ? { name: 'event-detail', eventId: route.eventId } : { name: 'home' })}
           onCreate={handleCreate}
           lang={LANG}
           playerSuggestions={playerSuggestions}
           defaultName={nextGameName}
+          events={events}
+          defaultEventId={route.eventId || null}
+          eventLocked={Boolean(route.eventId)}
         />
       );
       break;
+    case 'event-create':
+      content = (
+        <CreateEventScreen
+          onCancel={() => go({ name: 'home' })}
+          onCreate={handleCreateEvent}
+          defaultName={nextEventName}
+        />
+      );
+      break;
+    case 'event-detail': {
+      const ev = resolveEvent(route.eventId);
+      if (!ev) {
+        content = (
+          <Mono color="#949494" style={{ padding: 24 }}>Événement introuvable.</Mono>
+        );
+        break;
+      }
+      const eventGames = displayGames.filter((g) => g.eventId === ev.id);
+      content = (
+        <EventDetailScreen
+          event={ev}
+          games={eventGames}
+          onBack={() => go({ name: 'home' })}
+          onAddGame={() => go({ name: 'create', eventId: ev.id })}
+          onOpenGame={(g) => go(g.status === 'live'
+            ? { name: 'live', gameId: g.id }
+            : { name: 'spectator', gameId: g.id })}
+          onDeleteGame={handleDeleteGame}
+          onFinishEvent={() => handleFinishEvent(ev.id)}
+          onDeleteEvent={() => handleDeleteEvent(ev.id)}
+        />
+      );
+      break;
+    }
     case 'live': {
       const g = route.gameId ? resolveGame(route.gameId) : null;
       if (g) {

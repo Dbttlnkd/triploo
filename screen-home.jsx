@@ -28,7 +28,18 @@ function TrashButton({ onClick, color = '#949494', label = 'Supprimer la partie'
   );
 }
 
-const HomeScreen = ({ games, onOpen, onNew, onSpectate, onDelete, lang = 'fr' }) => {
+const HomeScreen = ({
+  games,
+  events = [],
+  onOpen,
+  onNew,
+  onSpectate,
+  onDelete,
+  onOpenEvent,
+  onCreateEvent,
+  onDeleteEvent,
+  lang = 'fr',
+}) => {
   const t = I18N[lang];
   const live = games.filter(g => g.status === 'live');
   const archived = games.filter(g => g.status === 'archived');
@@ -94,8 +105,74 @@ const HomeScreen = ({ games, onOpen, onNew, onSpectate, onDelete, lang = 'fr' })
         </div>
       </div>
 
+      {/* Events section */}
+      <div style={{ padding: '18px 18px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+          <Display size={24}>Événements</Display>
+          {onCreateEvent && (
+            <button
+              type="button"
+              onClick={onCreateEvent}
+              style={{
+                background: 'transparent', border: 0, color: '#3cffd0', cursor: 'pointer',
+                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                letterSpacing: '1.5px', textTransform: 'uppercase', padding: 0,
+              }}
+            >
+              + Nouveau
+            </button>
+          )}
+        </div>
+        {events.length === 0 ? (
+          <Mono color="#949494" size={12} style={{ display: 'block', lineHeight: 1.6 }}>
+            Aucun événement. Crées-en un pour regrouper plusieurs parties dans un même palmarès.
+          </Mono>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {events.map((ev) => {
+              const eventGames = games.filter((g) => g.eventId === ev.id);
+              const liveCount = eventGames.filter((g) => g.status === 'live').length;
+              const archivedCount = eventGames.filter((g) => g.status === 'archived').length;
+              const isLive = ev.status === 'live';
+              return (
+                <div
+                  key={ev.id}
+                  onClick={() => onOpenEvent?.(ev.id)}
+                  style={{
+                    background: 'var(--canvas-black)', border: '1px solid #fff',
+                    borderRadius: 16, padding: '14px 16px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Mono color={isLive ? '#3cffd0' : '#949494'} size={9} tracking="1.5px">
+                      {isLive ? 'EN COURS' : 'TERMINÉ'}
+                    </Mono>
+                    <div style={{
+                      fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 17,
+                      color: '#fff', marginTop: 4, lineHeight: 1.1,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{ev.name}</div>
+                    <div style={{ marginTop: 4 }}>
+                      <Mono color="#949494" size={10} tracking="1.1px" weight={500}>
+                        {archivedCount + liveCount} partie{archivedCount + liveCount > 1 ? 's' : ''}
+                        {liveCount > 0 ? ` · ${liveCount} live` : ''}
+                        {ev.place ? ` · ${ev.place}` : ''}
+                      </Mono>
+                    </div>
+                  </div>
+                  {onDeleteEvent && (
+                    <TrashButton onClick={() => onDeleteEvent(ev.id)}/>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Filter tabs */}
-      <div style={{ padding: '14px 18px 8px', display: 'flex', gap: 6 }}>
+      <div style={{ padding: '18px 18px 8px', display: 'flex', gap: 6 }}>
         {[{id:'all',label:'Toutes'},{id:'live',label:t.enCours},{id:'archived',label:t.archives}].map(x => {
           const active = tab === x.id;
           return (
@@ -228,7 +305,15 @@ function uiFormatFromTeamSizes(a, b) {
   return 'doublette';
 }
 
-const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [], defaultName = 'Partie #1' }) => {
+const CreateScreen = ({
+  onCancel,
+  onCreate,
+  playerSuggestions = [],
+  defaultName = 'Partie #1',
+  events = [],
+  defaultEventId = null,
+  eventLocked = false,
+}) => {
   const [target, setTarget] = React.useState(13);
   const [bestOf, setBestOf] = React.useState(1);
   const [name, setName] = React.useState(defaultName);
@@ -236,6 +321,8 @@ const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [], defaultName 
   const [placeBusy, setPlaceBusy] = React.useState(false);
   const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: [''] });
   const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: [''] });
+  const [eventId, setEventId] = React.useState(defaultEventId);
+  const liveEvents = React.useMemo(() => events.filter((e) => e.status === 'live'), [events]);
 
   React.useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
@@ -278,6 +365,7 @@ const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [], defaultName 
       bestOf,
       teamA: { name: teamA.name.trim() || 'Équipe A', color: teamA.color, players: safePa },
       teamB: { name: teamB.name.trim() || 'Équipe B', color: teamB.color, players: safePb },
+      eventId: eventId || null,
     });
   };
 
@@ -286,6 +374,55 @@ const CreateScreen = ({ onCancel, onCreate, playerSuggestions = [], defaultName 
       <ScreenHeader kicker="NOUVELLE PARTIE" title="On lance ?" onBack={onCancel}/>
 
       <div style={{ padding: '18px 18px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {liveEvents.length > 0 && (
+          <section>
+            <Mono color="#949494" size={10} tracking="1.5px">Événement</Mono>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              <button
+                type="button"
+                disabled={eventLocked}
+                onClick={() => setEventId(null)}
+                style={{
+                  background: !eventId ? '#fff' : 'transparent',
+                  color: !eventId ? '#000' : '#fff',
+                  border: '1px solid #fff', borderRadius: 40, padding: '8px 14px',
+                  cursor: eventLocked ? 'not-allowed' : 'pointer', opacity: eventLocked ? 0.5 : 1,
+                  fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '1.4px', textTransform: 'uppercase',
+                }}
+              >
+                Aucun
+              </button>
+              {liveEvents.map((ev) => {
+                const active = eventId === ev.id;
+                return (
+                  <button
+                    key={ev.id}
+                    type="button"
+                    disabled={eventLocked && !active}
+                    onClick={() => !eventLocked && setEventId(ev.id)}
+                    style={{
+                      background: active ? 'var(--jelly-mint)' : 'transparent',
+                      color: active ? '#000' : '#fff',
+                      border: `1px solid ${active ? 'var(--jelly-mint)' : '#fff'}`,
+                      borderRadius: 40, padding: '8px 14px',
+                      cursor: eventLocked && !active ? 'not-allowed' : 'pointer',
+                      opacity: eventLocked && !active ? 0.4 : 1,
+                      fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                      letterSpacing: '1.4px', textTransform: 'uppercase',
+                    }}
+                  >{ev.name}</button>
+                );
+              })}
+            </div>
+            {eventLocked && eventId && (
+              <Mono color="#949494" size={10} tracking="1.2px" style={{ display: 'block', marginTop: 8 }}>
+                Partie rattachée à cet événement
+              </Mono>
+            )}
+          </section>
+        )}
+
         {/* Teams */}
         <section>
           <Mono color="#949494" size={10} tracking="1.5px">Équipes</Mono>
