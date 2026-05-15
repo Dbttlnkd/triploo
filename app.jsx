@@ -15,6 +15,7 @@ import {
   finalizeGameRemote,
   deleteGameRemote,
   subscribeRounds,
+  subscribeEvent,
 } from './lib/games.js';
 import { Mono, Display, TabBar } from './ui-kit.jsx';
 import { HomeScreen, CreateScreen, StatsScreen } from './screen-home.jsx';
@@ -88,14 +89,26 @@ export function App() {
 
   const [games, setGames] = React.useState(() => (remote ? [] : cloneDemoGames()));
   const [events, setEvents] = React.useState([]);
+  const [eventsLoaded, setEventsLoaded] = React.useState(false);
+  const [gamesLoaded, setGamesLoaded] = React.useState(!remote);
   const [playerSuggestions, setPlayerSuggestions] = React.useState([]);
   const [loadErr, setLoadErr] = React.useState(null);
+  const [pendingDeepLink, setPendingDeepLink] = React.useState(() => {
+    if (typeof window === 'undefined') return null;
+    const p = new URLSearchParams(window.location.search);
+    const ev = p.get('event');
+    const gm = p.get('game');
+    if (ev) return { type: 'event', id: ev };
+    if (gm) return { type: 'game', id: gm };
+    return null;
+  });
 
   const refreshGames = React.useCallback(async () => {
     if (!remote) return;
     try {
       const list = await fetchGames();
       setGames(list);
+      setGamesLoaded(true);
     } catch (e) {
       setLoadErr(e?.message || String(e));
     }
@@ -106,6 +119,7 @@ export function App() {
     try {
       const list = await fetchEvents();
       setEvents(list);
+      setEventsLoaded(true);
     } catch (e) {
       setLoadErr(e?.message || String(e));
     }
@@ -160,6 +174,41 @@ export function App() {
     }
     return `Événement #${max + 1}`;
   }, [events]);
+
+  React.useEffect(() => {
+    if (!remote || route.name !== 'event-detail' || !route.eventId) return undefined;
+    const off = subscribeEvent(route.eventId, () => {
+      refreshGames();
+      refreshEvents();
+    });
+    return off;
+  }, [remote, route.name, route.eventId, refreshGames, refreshEvents]);
+
+  // Resolve ?event= / ?game= deep links once the relevant collection has loaded.
+  React.useEffect(() => {
+    if (!pendingDeepLink) return;
+    if (pendingDeepLink.type === 'event' && !eventsLoaded) return;
+    if (pendingDeepLink.type === 'game' && !gamesLoaded) return;
+
+    if (pendingDeepLink.type === 'event') {
+      const ev = events.find((e) => e.id === pendingDeepLink.id);
+      if (ev) setRoute({ name: 'event-detail', eventId: ev.id });
+    } else if (pendingDeepLink.type === 'game') {
+      const g = games.find((x) => x.id === pendingDeepLink.id);
+      if (g) {
+        setRoute(g.status === 'live'
+          ? { name: 'live', gameId: g.id }
+          : { name: 'spectator', gameId: g.id });
+      }
+    }
+    setPendingDeepLink(null);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('event');
+      u.searchParams.delete('game');
+      window.history.replaceState({}, '', u.pathname + (u.search ? '?' + u.searchParams.toString() : '') + u.hash);
+    }
+  }, [pendingDeepLink, eventsLoaded, gamesLoaded, events, games]);
 
   React.useEffect(() => {
     if (!remote || route.name !== 'live' || !route.gameId) return undefined;
