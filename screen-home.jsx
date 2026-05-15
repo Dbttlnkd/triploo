@@ -502,11 +502,11 @@ const CreateScreen = ({
         <section>
           <Mono color="#949494" size={10} tracking="1.5px">Équipes</Mono>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-            <TeamCard team={teamA} onChange={setTeamA} accent="A" suggestions={mergedSuggestions}/>
+            <TeamCard team={teamA} onChange={setTeamA} accent="A" suggestions={mergedSuggestions} otherTeam={teamB}/>
             <div style={{ textAlign: 'center' }}>
               <Mono color="#5200ff" size={11} tracking="1.8px" weight={700}>VS</Mono>
             </div>
-            <TeamCard team={teamB} onChange={setTeamB} accent="B" suggestions={mergedSuggestions}/>
+            <TeamCard team={teamB} onChange={setTeamB} accent="B" suggestions={mergedSuggestions} otherTeam={teamA}/>
           </div>
         </section>
 
@@ -573,8 +573,10 @@ const CreateScreen = ({
   );
 };
 
-function PlayerInput({ value, userId, onChange, placeholder, suggestions, color }) {
+function PlayerInput({ value, userId, onChange, placeholder, suggestions, color, excludedUserIds }) {
   // suggestions: Array<{ name: string, userId?: string|null, isMember?: boolean }>
+  // excludedUserIds: Set<string> — userIds already picked in OTHER slots; we
+  //   filter them out so the same human can't be in two places at once.
   // onChange(name, userId): caller stores both halves
   const [open, setOpen] = React.useState(false);
   const wrapperRef = React.useRef(null);
@@ -585,6 +587,7 @@ function PlayerInput({ value, userId, onChange, placeholder, suggestions, color 
     const list = [];
     for (const s of suggestions) {
       if (!s?.name) continue;
+      if (s.userId && excludedUserIds && excludedUserIds.has(s.userId)) continue;
       const k = s.name.toLowerCase();
       if (used.has(k)) continue;
       if (q && !k.includes(q)) continue;
@@ -593,7 +596,7 @@ function PlayerInput({ value, userId, onChange, placeholder, suggestions, color 
       if (list.length >= 8) break;
     }
     return list;
-  }, [value, suggestions]);
+  }, [value, suggestions, excludedUserIds]);
 
   React.useEffect(() => {
     if (!open) return undefined;
@@ -683,7 +686,7 @@ function PlayerInput({ value, userId, onChange, placeholder, suggestions, color 
   );
 }
 
-const TeamCard = ({ team, onChange, accent, suggestions = [] }) => {
+const TeamCard = ({ team, onChange, accent, suggestions = [], otherTeam = null }) => {
   const c = TEAM_COLORS[team.color];
   const minPlayers = MIN_PLAYERS_PER_TEAM;
   const maxPlayers = MAX_PLAYERS_PER_TEAM;
@@ -752,6 +755,12 @@ const TeamCard = ({ team, onChange, accent, suggestions = [] }) => {
               placeholder={`Joueur ${i + 1}`}
               suggestions={suggestions}
               color={c.fg}
+              excludedUserIds={(() => {
+                const ex = new Set();
+                playerUserIds.forEach((u, j) => { if (u && j !== i) ex.add(u); });
+                (otherTeam?.playerUserIds || []).forEach((u) => { if (u) ex.add(u); });
+                return ex;
+              })()}
             />
             <button type="button" disabled={team.players.length <= minPlayers} onClick={() => removePlayer(i)} style={{
               background: 'transparent', border: 0, color: c.fg, cursor: team.players.length <= minPlayers ? 'not-allowed' : 'pointer',
@@ -856,14 +865,18 @@ function computePersonalStats(games, myUserId) {
   let bestStreak = 0;
 
   for (const g of finished) {
-    let mySide = null;
+    // A user can technically appear in multiple teams of the same game if
+    // the picker was misused. Collect every team where we're listed and
+    // count the game as a win if any of those teams won — be charitable
+    // about historical data anomalies.
+    const mySides = [];
     g.teams.forEach((team) => {
       const refs = team.playerRefs || [];
-      if (refs.some((r) => r.userId === myUserId)) mySide = team.id;
+      if (refs.some((r) => r.userId === myUserId)) mySides.push(team.id);
     });
-    if (!mySide) continue;
+    if (mySides.length === 0) continue;
     played += 1;
-    if (mySide === g.winner) {
+    if (mySides.includes(g.winner)) {
       wins += 1;
       streak += 1;
       if (streak > bestStreak) bestStreak = streak;
