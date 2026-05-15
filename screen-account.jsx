@@ -10,7 +10,9 @@ import {
   signOut,
   fetchMyProfile,
   isPermanentAccount,
+  updateMyPassword,
 } from './lib/auth.js';
+import { getSupabase } from './lib/supabase.js';
 
 export const AccountScreen = ({ profile, onBack, onProfileRefresh, onSignedOut }) => {
   const [name, setName] = React.useState(profile?.display_name || '');
@@ -19,17 +21,37 @@ export const AccountScreen = ({ profile, onBack, onProfileRefresh, onSignedOut }
   const [nameErr, setNameErr] = React.useState(null);
 
   const [permanent, setPermanent] = React.useState(false);
+  const [authEmail, setAuthEmail] = React.useState(null);
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [recoveryEmail, setRecoveryEmail] = React.useState('');
   const [upgradeBusy, setUpgradeBusy] = React.useState(false);
   const [upgradeToast, setUpgradeToast] = React.useState(null);
   const [upgradeErr, setUpgradeErr] = React.useState(null);
 
+  const [newPassword, setNewPassword] = React.useState('');
+  const [pwdBusy, setPwdBusy] = React.useState(false);
+  const [pwdToast, setPwdToast] = React.useState(null);
+  const [pwdErr, setPwdErr] = React.useState(null);
+
   React.useEffect(() => {
     let cancelled = false;
-    isPermanentAccount().then((v) => { if (!cancelled) setPermanent(v); }).catch(() => {});
+    (async () => {
+      try {
+        const perm = await isPermanentAccount();
+        if (cancelled) return;
+        setPermanent(perm);
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!cancelled) setAuthEmail(user?.email || null);
+      } catch {
+        // ignore
+      }
+    })();
     return () => { cancelled = true; };
   }, [profile?.id, upgradeToast]);
+
+  const hasRealRecoveryEmail = Boolean(authEmail && !authEmail.endsWith('@triploo.app'));
 
   const saveName = async () => {
     setNameErr(null);
@@ -65,15 +87,38 @@ export const AccountScreen = ({ profile, onBack, onProfileRefresh, onSignedOut }
     }
     setUpgradeBusy(true);
     try {
-      await upgradeToUsername(u, password);
-      setUpgradeToast('Compte créé. Tu peux te connecter sur un autre appareil avec ce pseudo et ce mot de passe.');
+      await upgradeToUsername(u, password, recoveryEmail);
+      const withRecovery = Boolean(recoveryEmail.trim());
+      setUpgradeToast(
+        withRecovery
+          ? `Compte créé. Tu pourras réinitialiser ton mot de passe via ${recoveryEmail.trim()}.`
+          : "Compte créé. Sans email de récupération, ton mot de passe n'est pas réinitialisable."
+      );
       setUsername('');
       setPassword('');
+      setRecoveryEmail('');
       await onProfileRefresh?.();
     } catch (err) {
       setUpgradeErr(err?.message || String(err));
     } finally {
       setUpgradeBusy(false);
+    }
+  };
+
+  const changePassword = async (e) => {
+    e?.preventDefault?.();
+    setPwdErr(null);
+    setPwdToast(null);
+    setPwdBusy(true);
+    try {
+      await updateMyPassword(newPassword);
+      setPwdToast('Mot de passe mis à jour.');
+      setNewPassword('');
+      setTimeout(() => setPwdToast(null), 2400);
+    } catch (err) {
+      setPwdErr(err?.message || String(err));
+    } finally {
+      setPwdBusy(false);
     }
   };
 
@@ -136,6 +181,11 @@ export const AccountScreen = ({ profile, onBack, onProfileRefresh, onSignedOut }
                 Ton compte est lié. Tu peux te reconnecter sur un autre appareil avec ton pseudo
                 {profile?.username ? ` (${profile.username})` : ''} et ton mot de passe.
               </p>
+              <p style={{ marginTop: 10, color: hasRealRecoveryEmail ? '#3cffd0' : '#ff7a7a', fontSize: 13, lineHeight: 1.5 }}>
+                {hasRealRecoveryEmail
+                  ? `Email de récupération : ${authEmail}.`
+                  : "Aucun email de récupération. Si tu oublies ton mot de passe, seul un admin pourra réinitialiser."}
+              </p>
             </>
           ) : (
             <>
@@ -178,6 +228,25 @@ export const AccountScreen = ({ profile, onBack, onProfileRefresh, onSignedOut }
                     }}
                   />
                 </label>
+                <label>
+                  <Mono color="#949494" size={10} tracking="1.2px">EMAIL (FACULTATIF)</Mono>
+                  <input
+                    type="email"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    placeholder="pour réinitialiser le mot de passe"
+                    autoComplete="email"
+                    inputMode="email"
+                    style={{
+                      display: 'block', width: '100%', marginTop: 6, padding: '12px 14px',
+                      borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+                      fontSize: 16, outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                  <Mono color="#949494" size={9} tracking="1.2px" style={{ display: 'block', marginTop: 6, lineHeight: 1.5 }}>
+                    Sans email : aucune récupération possible si tu oublies le mot de passe.
+                  </Mono>
+                </label>
                 {upgradeErr && <Mono color="#ff5e5e" size={12} style={{ display: 'block', lineHeight: 1.5 }}>{upgradeErr}</Mono>}
                 {upgradeToast && <Mono color="#3cffd0" size={11} style={{ display: 'block', lineHeight: 1.5 }}>{upgradeToast}</Mono>}
                 <button
@@ -196,6 +265,41 @@ export const AccountScreen = ({ profile, onBack, onProfileRefresh, onSignedOut }
             </>
           )}
         </section>
+
+        {permanent && (
+          <section style={{ border: '1px solid #313131', borderRadius: 24, padding: 18 }}>
+            <Eyebrow color="#949494">CHANGER MON MOT DE PASSE</Eyebrow>
+            <form onSubmit={changePassword} style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Nouveau mot de passe (6 chars min)"
+                autoComplete="new-password"
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 12,
+                  border: '1px solid #fff', background: '#070707', color: '#fff',
+                  fontSize: 16, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+              {pwdErr && <Mono color="#ff5e5e" size={12} style={{ display: 'block', lineHeight: 1.5 }}>{pwdErr}</Mono>}
+              {pwdToast && <Mono color="#3cffd0" size={11} style={{ display: 'block' }}>{pwdToast}</Mono>}
+              <button
+                type="submit"
+                disabled={pwdBusy || !newPassword}
+                style={{
+                  padding: '12px 18px', borderRadius: 30, border: 0,
+                  background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '1.4px', textTransform: 'uppercase',
+                  cursor: (pwdBusy || !newPassword) ? 'not-allowed' : 'pointer',
+                  opacity: (pwdBusy || !newPassword) ? 0.6 : 1,
+                }}
+              >
+                {pwdBusy ? '…' : 'Mettre à jour'}
+              </button>
+            </form>
+          </section>
+        )}
 
         <button
           type="button"
