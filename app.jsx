@@ -17,6 +17,7 @@ import {
   deleteGameRemote,
   subscribeRounds,
   subscribeEvent,
+  subscribeAll,
 } from './lib/games.js';
 import { Mono, Display, TabBar } from './ui-kit.jsx';
 import { HomeScreen, CreateScreen, StatsScreen } from './screen-home.jsx';
@@ -226,6 +227,27 @@ export function App() {
     }
     return `Événement #${max + 1}`;
   }, [events]);
+
+  // App-wide realtime: keep events + games lists fresh on every screen.
+  // Postgres realtime respects RLS, so the callback only fires for rows
+  // the current anon session can already SELECT.
+  React.useEffect(() => {
+    if (!remote || !authReady) return undefined;
+    let timer = null;
+    const debouncedRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        refreshGames();
+        refreshEvents();
+      }, 300);
+    };
+    const off = subscribeAll(debouncedRefresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      off();
+    };
+  }, [remote, authReady, refreshGames, refreshEvents]);
 
   React.useEffect(() => {
     if (!remote || route.name !== 'event-detail' || !route.eventId) return undefined;
