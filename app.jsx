@@ -839,6 +839,8 @@ export function App() {
           events={events}
           defaultEventId={route.eventId || null}
           eventLocked={Boolean(route.eventId)}
+          myUserId={myProfile?.id || null}
+          myDisplayName={myProfile?.display_name || ''}
         />
       );
       break;
