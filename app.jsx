@@ -2,7 +2,13 @@
 import React from 'react';
 import { DEMO_GAMES } from './app-state.jsx';
 import { isSupabaseConfigured, getSupabase } from './lib/supabase.js';
-import { ensureSession, joinEventByToken, AnonDisabledError } from './lib/auth.js';
+import {
+  ensureSession,
+  joinEventByToken,
+  fetchMyProfile,
+  setMyDisplayName,
+  AnonDisabledError,
+} from './lib/auth.js';
 import {
   fetchGames,
   fetchPlayerNames,
@@ -35,6 +41,79 @@ function cloneDemoGames() {
     teams: g.teams.map((t) => ({ ...t, players: [...(t.players || [])] })),
     rounds: [...(g.rounds || [])],
   }));
+}
+
+function DisplayNamePrompt({ onSubmit }) {
+  const [value, setValue] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setErr('Choisis un nom pour commencer.');
+      return;
+    }
+    setBusy(true); setErr(null);
+    try {
+      await onSubmit(trimmed);
+    } catch (e2) {
+      setErr(e2?.message || String(e2));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{
+      width: '100%', minHeight: '100vh', background: '#070707', color: '#fff',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <form onSubmit={submit} style={{
+        maxWidth: 420, width: '100%', border: '1px solid #309875', borderRadius: 24,
+        padding: '28px 24px',
+      }}>
+        <Mono color="#3cffd0" size={11} tracking="1.5px">BIENVENUE</Mono>
+        <div style={{ marginTop: 10 }}>
+          <Display size={32} style={{ letterSpacing: '-0.5px' }}>Comment tu t'appelles ?</Display>
+        </div>
+        <p style={{ marginTop: 12, color: '#949494', fontSize: 14, lineHeight: 1.55 }}>
+          Ce nom sera visible par les personnes que tu invites dans un événement, et utilisé pour suivre tes parties.
+        </p>
+        <label style={{ display: 'block', marginTop: 18 }}>
+          <Mono color="#949494" size={10} tracking="1.2px">PSEUDO / PRÉNOM</Mono>
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="ex. Alice"
+            autoFocus
+            maxLength={32}
+            style={{
+              display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
+              borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+              fontSize: 16, outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </label>
+        {err && (
+          <Mono color="#ff5e5e" size={12} style={{ display: 'block', marginTop: 12, lineHeight: 1.5 }}>{err}</Mono>
+        )}
+        <button
+          type="submit"
+          disabled={busy}
+          style={{
+            marginTop: 18, width: '100%', padding: '14px 18px', borderRadius: 30, border: 0,
+            background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
+            fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+            cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
+          }}
+        >
+          {busy ? '…' : 'Continuer'}
+        </button>
+      </form>
+    </div>
+  );
 }
 
 const NO_LIVE_GAME_QUIPS = [
@@ -95,6 +174,7 @@ export function App() {
   const [gamesLoaded, setGamesLoaded] = React.useState(!remote);
   const [authReady, setAuthReady] = React.useState(!remote);
   const [authError, setAuthError] = React.useState(null);
+  const [myProfile, setMyProfile] = React.useState(null);
   const [playerSuggestions, setPlayerSuggestions] = React.useState([]);
   const [loadErr, setLoadErr] = React.useState(null);
   const [pendingDeepLink, setPendingDeepLink] = React.useState(() => {
@@ -169,6 +249,15 @@ export function App() {
           // event. Surface the error in the toast slot for visibility.
           setLoadErr("Lien d'invitation invalide ou expiré.");
         }
+      }
+
+      if (cancelled) return;
+
+      try {
+        const profile = await fetchMyProfile();
+        if (!cancelled) setMyProfile(profile);
+      } catch {
+        // Profile fetch is non-blocking; the gate is purely on display_name.
       }
 
       if (cancelled) return;
@@ -506,6 +595,7 @@ export function App() {
         <EventDetailScreen
           event={ev}
           games={eventGames}
+          myUserId={myProfile?.id || null}
           onBack={() => go({ name: 'home' })}
           onAddGame={() => go({ name: 'create', eventId: ev.id })}
           onOpenGame={(g) => go(g.status === 'live'
@@ -514,6 +604,7 @@ export function App() {
           onDeleteGame={handleDeleteGame}
           onFinishEvent={() => handleFinishEvent(ev.id)}
           onDeleteEvent={() => handleDeleteEvent(ev.id)}
+          onAfterClaim={refreshGames}
         />
       );
       break;
@@ -551,7 +642,7 @@ export function App() {
       content = <PhotoScreen/>;
       break;
     case 'stats':
-      content = <StatsScreen lang={LANG} games={displayGames}/>;
+      content = <StatsScreen lang={LANG} games={displayGames} myUserId={myProfile?.id || null}/>;
       break;
     default:
       content = <HomeScreen games={displayGames} onOpen={() => {}} onNew={() => {}} lang={LANG}/>;
@@ -590,6 +681,18 @@ export function App() {
       }}>
         <Mono color="#3cffd0" size={11} tracking="1.9px">CONNEXION…</Mono>
       </div>
+    );
+  }
+
+  if (remote && myProfile && !((myProfile.display_name || '').trim())) {
+    return (
+      <DisplayNamePrompt
+        onSubmit={async (name) => {
+          await setMyDisplayName(name);
+          const fresh = await fetchMyProfile();
+          setMyProfile(fresh);
+        }}
+      />
     );
   }
 

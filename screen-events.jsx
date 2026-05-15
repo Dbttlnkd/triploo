@@ -4,6 +4,7 @@ import { TEAM_COLORS, Icon } from './app-state.jsx';
 import {
   Mono, Eyebrow, Display, PillBtn, ScreenHeader, Boule,
 } from './ui-kit.jsx';
+import { fetchEventMembers, claimPlayerName, unclaimMyPlayers } from './lib/auth.js';
 
 function reverseGeocode(lat, lon) {
   return fetch(
@@ -121,12 +122,14 @@ function aggregateEventStats(games) {
   for (const g of finished) {
     g.teams.forEach((team) => {
       const isWinning = team.id === g.winner;
-      for (const playerName of team.players || []) {
-        const name = (playerName || '').trim();
+      const refs = team.playerRefs || (team.players || []).map((n) => ({ name: n, userId: null }));
+      for (const ref of refs) {
+        const name = (ref.name || '').trim();
         if (!name) continue;
-        if (!map.has(name)) map.set(name, { name, played: 0, wins: 0 });
+        if (!map.has(name)) map.set(name, { name, played: 0, wins: 0, userIds: new Set() });
         const s = map.get(name);
         s.played += 1;
+        if (ref.userId) s.userIds.add(ref.userId);
         if (isWinning) s.wins += 1;
       }
     });
@@ -134,9 +137,29 @@ function aggregateEventStats(games) {
   const rows = Array.from(map.values()).map((s) => ({
     ...s,
     ratio: s.played ? Math.round((s.wins / s.played) * 100) : 0,
+    userIds: Array.from(s.userIds),
   }));
   rows.sort((a, b) => (b.wins - a.wins) || (b.ratio - a.ratio) || (b.played - a.played));
   return rows;
+}
+
+/** Distinct unclaimed player names appearing in any game of the event. */
+function collectUnclaimedNames(games) {
+  const seen = new Map(); // key (lowercased) → { name, count }
+  for (const g of games) {
+    g.teams?.forEach((team) => {
+      const refs = team.playerRefs || (team.players || []).map((n) => ({ name: n, userId: null }));
+      for (const ref of refs) {
+        if (ref.userId) continue;
+        const trimmed = (ref.name || '').trim();
+        if (!trimmed) continue;
+        const k = trimmed.toLowerCase();
+        if (!seen.has(k)) seen.set(k, { name: trimmed, count: 0 });
+        seen.get(k).count += 1;
+      }
+    });
+  }
+  return Array.from(seen.values()).sort((a, b) => b.count - a.count);
 }
 
 function TrashIcon({ color = '#949494' }) {
@@ -161,9 +184,11 @@ function buildEventLink(event) {
 }
 
 export const EventDetailScreen = ({
-  event, games, onBack, onAddGame, onOpenGame, onDeleteGame, onFinishEvent, onDeleteEvent,
+  event, games, myUserId, onBack, onAddGame, onOpenGame, onDeleteGame, onFinishEvent, onDeleteEvent, onAfterClaim,
 }) => {
   const [inviteToast, setInviteToast] = React.useState(null);
+  const [members, setMembers] = React.useState([]);
+  const [claimBusy, setClaimBusy] = React.useState(null);
 
   const handleInvite = React.useCallback(async () => {
     if (!event) return;
@@ -191,10 +216,61 @@ export const EventDetailScreen = ({
     setInviteToast(link);
   }, [event]);
 
+  const refreshMembers = React.useCallback(() => {
+    if (!event?.id) return;
+    fetchEventMembers(event.id).then(setMembers).catch(() => setMembers([]));
+  }, [event?.id]);
+
+  React.useEffect(() => {
+    refreshMembers();
+  }, [refreshMembers]);
+
+  const myMember = React.useMemo(
+    () => (myUserId ? members.find((m) => m.userId === myUserId) : null),
+    [members, myUserId],
+  );
+
+  const unclaimedNames = React.useMemo(() => collectUnclaimedNames(games), [games]);
+  const stats = React.useMemo(() => aggregateEventStats(games), [games]);
+  const myClaims = React.useMemo(() => {
+    if (!myUserId) return 0;
+    let n = 0;
+    for (const g of games) {
+      for (const team of g.teams || []) {
+        const refs = team.playerRefs || [];
+        n += refs.filter((r) => r.userId === myUserId).length;
+      }
+    }
+    return n;
+  }, [games, myUserId]);
+
+  const claim = async (rawName) => {
+    if (!event?.id || claimBusy) return;
+    setClaimBusy(rawName);
+    try {
+      await claimPlayerName(event.id, rawName);
+      await onAfterClaim?.();
+    } catch {
+      // swallow — realtime will refresh anyway if it eventually succeeds
+    } finally {
+      setClaimBusy(null);
+    }
+  };
+
+  const releaseMine = async () => {
+    if (!event?.id) return;
+    setClaimBusy('__release');
+    try {
+      await unclaimMyPlayers(event.id);
+      await onAfterClaim?.();
+    } finally {
+      setClaimBusy(null);
+    }
+  };
+
   if (!event) return null;
   const live = games.filter((g) => g.status === 'live');
   const archived = games.filter((g) => g.status === 'archived');
-  const stats = React.useMemo(() => aggregateEventStats(games), [games]);
   const top = stats[0];
   const totalGames = games.length;
 
@@ -264,6 +340,86 @@ export const EventDetailScreen = ({
           )}
         </div>
 
+        {/* Members */}
+        {members.length > 0 && (
+          <section>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <Display size={24}>Membres</Display>
+              <Mono color="#949494" size={10} tracking="1.5px" weight={500}>{members.length}</Mono>
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {members.map((m) => {
+                const isSelf = m.userId === myUserId;
+                const label = (m.displayName || '').trim() || (isSelf ? 'Toi' : 'Membre');
+                return (
+                  <div key={m.userId} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    border: '1px solid #309875', borderRadius: 40, padding: '6px 12px',
+                    background: isSelf ? 'rgba(60,255,208,0.08)' : 'transparent',
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3cffd0' }}/>
+                    <Mono color="#fff" size={11} tracking="1.1px">{label}{isSelf ? ' (toi)' : ''}</Mono>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Unclaimed players — "C'est moi" */}
+        {myMember && unclaimedNames.length > 0 && (
+          <section>
+            <Display size={24}>Joueurs non liés</Display>
+            <p style={{ color: '#949494', fontSize: 13, lineHeight: 1.5, marginTop: 6 }}>
+              Tape « C'est moi » sur ton nom pour reprendre tes scores passés dans cet événement.
+            </p>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {unclaimedNames.map((u) => (
+                <div key={u.name} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                  border: '1px solid #313131', borderRadius: 14, padding: '10px 14px',
+                }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 15, color: '#fff' }}>{u.name}</div>
+                    <Mono color="#949494" size={10} tracking="1.1px" weight={500}>
+                      {u.count} APPARITION{u.count > 1 ? 'S' : ''}
+                    </Mono>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => claim(u.name)}
+                    disabled={Boolean(claimBusy)}
+                    style={{
+                      background: 'var(--jelly-mint)', color: '#000', border: 0, borderRadius: 30,
+                      padding: '8px 14px', cursor: claimBusy ? 'wait' : 'pointer', opacity: claimBusy ? 0.7 : 1,
+                      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                      letterSpacing: '1.4px', textTransform: 'uppercase',
+                    }}
+                  >
+                    {claimBusy === u.name ? '…' : "C'est moi"}
+                  </button>
+                </div>
+              ))}
+            </div>
+            {myClaims > 0 && (
+              <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={releaseMine}
+                  disabled={Boolean(claimBusy)}
+                  style={{
+                    background: 'transparent', border: 0, color: '#949494',
+                    fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                    letterSpacing: '1.4px', textTransform: 'uppercase', cursor: 'pointer', padding: 0,
+                  }}
+                >
+                  Ce n'est plus moi
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Leaderboard */}
         {stats.length > 0 ? (
           <section>
@@ -276,7 +432,12 @@ export const EventDetailScreen = ({
                   alignItems: 'center',
                 }}>
                   <Display size={20} color={i === 0 ? '#3cffd0' : '#fff'}>{i + 1}</Display>
-                  <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {p.userIds.length > 0 && (
+                      <span title="Joueur lié à un compte" style={{ width: 7, height: 7, borderRadius: '50%', background: '#3cffd0', flexShrink: 0 }}/>
+                    )}
+                    <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</span>
+                  </div>
                   <Mono color="#949494" size={10} tracking="1.1px" weight={500}>{p.wins}/{p.played}</Mono>
                   <div style={{ minWidth: 48, textAlign: 'right' }}>
                     <Display size={20} color={p.ratio >= 60 ? '#3cffd0' : '#fff'}>{p.ratio}%</Display>
