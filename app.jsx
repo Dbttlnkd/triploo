@@ -7,6 +7,7 @@ import {
   joinEventByToken,
   fetchMyProfile,
   setMyDisplayName,
+  signInWithExistingUsername,
   AnonDisabledError,
 } from './lib/auth.js';
 import {
@@ -30,6 +31,7 @@ import { HomeScreen, CreateScreen, StatsScreen } from './screen-home.jsx';
 import { LiveScreen } from './screen-live.jsx';
 import { SpectatorScreen, PhotoScreen } from './screen-extras.jsx';
 import { CreateEventScreen, EventDetailScreen } from './screen-events.jsx';
+import { AccountScreen } from './screen-account.jsx';
 
 const LANG = 'fr';
 const WIN_THRESHOLD = 13;
@@ -43,7 +45,7 @@ function cloneDemoGames() {
   }));
 }
 
-function DisplayNamePrompt({ onSubmit }) {
+function DisplayNamePrompt({ onSubmit, onSwitchToLogin }) {
   const [value, setValue] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState(null);
@@ -111,6 +113,125 @@ function DisplayNamePrompt({ onSubmit }) {
         >
           {busy ? '…' : 'Continuer'}
         </button>
+        {onSwitchToLogin && (
+          <div style={{ marginTop: 14, textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={onSwitchToLogin}
+              style={{
+                background: 'transparent', border: 0, color: '#3cffd0',
+                fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '1px',
+                textTransform: 'uppercase', cursor: 'pointer', padding: 4,
+              }}
+            >
+              J'ai déjà un compte
+            </button>
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
+
+function LoginPrompt({ onSubmit, onSwitchToSignup }) {
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    setErr(null);
+    if (!username.trim() || !password) {
+      setErr('Pseudo et mot de passe requis.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await onSubmit(username.trim().toLowerCase(), password);
+    } catch (e2) {
+      setErr(e2?.message || String(e2));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{
+      width: '100%', minHeight: '100vh', background: '#070707', color: '#fff',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <form onSubmit={submit} style={{
+        maxWidth: 420, width: '100%', border: '1px solid #309875', borderRadius: 24,
+        padding: '28px 24px',
+      }}>
+        <Mono color="#3cffd0" size={11} tracking="1.5px">SE CONNECTER</Mono>
+        <div style={{ marginTop: 10 }}>
+          <Display size={32} style={{ letterSpacing: '-0.5px' }}>Bon retour.</Display>
+        </div>
+        <p style={{ marginTop: 12, color: '#949494', fontSize: 14, lineHeight: 1.55 }}>
+          Pseudo et mot de passe de ton compte Triploo.
+        </p>
+        <label style={{ display: 'block', marginTop: 18 }}>
+          <Mono color="#949494" size={10} tracking="1.2px">PSEUDO</Mono>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="ex. alice_42"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={20}
+            style={{
+              display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
+              borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+              fontSize: 16, outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </label>
+        <label style={{ display: 'block', marginTop: 14 }}>
+          <Mono color="#949494" size={10} tracking="1.2px">MOT DE PASSE</Mono>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            style={{
+              display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
+              borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+              fontSize: 16, outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </label>
+        {err && <Mono color="#ff5e5e" size={12} style={{ display: 'block', marginTop: 12, lineHeight: 1.5 }}>{err}</Mono>}
+        <button
+          type="submit"
+          disabled={busy}
+          style={{
+            marginTop: 18, width: '100%', padding: '14px 18px', borderRadius: 30, border: 0,
+            background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
+            fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+            cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
+          }}
+        >
+          {busy ? '…' : 'Se connecter'}
+        </button>
+        {onSwitchToSignup && (
+          <div style={{ marginTop: 14, textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={onSwitchToSignup}
+              style={{
+                background: 'transparent', border: 0, color: '#3cffd0',
+                fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '1px',
+                textTransform: 'uppercase', cursor: 'pointer', padding: 4,
+              }}
+            >
+              Première fois ici
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -175,6 +296,7 @@ export function App() {
   const [authReady, setAuthReady] = React.useState(!remote);
   const [authError, setAuthError] = React.useState(null);
   const [myProfile, setMyProfile] = React.useState(null);
+  const [gateMode, setGateMode] = React.useState('signup'); // 'signup' | 'login'
   const [playerSuggestions, setPlayerSuggestions] = React.useState([]);
   const [loadErr, setLoadErr] = React.useState(null);
   const [pendingDeepLink, setPendingDeepLink] = React.useState(() => {
@@ -555,7 +677,24 @@ export function App() {
           onOpenEvent={(id) => go({ name: 'event-detail', eventId: id })}
           onCreateEvent={() => go({ name: 'event-create' })}
           onDeleteEvent={handleDeleteEvent}
+          onOpenAccount={() => go({ name: 'account' })}
+          myDisplayName={myProfile?.display_name || ''}
           lang={LANG}
+        />
+      );
+      break;
+    case 'account':
+      content = (
+        <AccountScreen
+          profile={myProfile}
+          onBack={() => go({ name: 'home' })}
+          onProfileRefresh={async () => {
+            const fresh = await fetchMyProfile();
+            setMyProfile(fresh);
+          }}
+          onSignedOut={() => {
+            if (typeof window !== 'undefined') window.location.reload();
+          }}
         />
       );
       break;
@@ -685,6 +824,21 @@ export function App() {
   }
 
   if (remote && myProfile && !((myProfile.display_name || '').trim())) {
+    if (gateMode === 'login') {
+      return (
+        <LoginPrompt
+          onSubmit={async (username, password) => {
+            await signInWithExistingUsername(username, password);
+            const fresh = await fetchMyProfile();
+            setMyProfile(fresh);
+            setGateMode('signup');
+            refreshGames();
+            refreshEvents();
+          }}
+          onSwitchToSignup={() => setGateMode('signup')}
+        />
+      );
+    }
     return (
       <DisplayNamePrompt
         onSubmit={async (name) => {
@@ -692,6 +846,7 @@ export function App() {
           const fresh = await fetchMyProfile();
           setMyProfile(fresh);
         }}
+        onSwitchToLogin={() => setGateMode('login')}
       />
     );
   }
