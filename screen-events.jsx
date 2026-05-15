@@ -150,12 +150,13 @@ function TrashIcon({ color = '#949494' }) {
   );
 }
 
-function buildEventLink(eventId) {
-  if (typeof window === 'undefined') return '';
+function buildEventLink(event) {
+  if (typeof window === 'undefined' || !event) return '';
   const u = new URL(window.location.href);
   u.search = '';
   u.hash = '';
-  u.searchParams.set('event', eventId);
+  u.searchParams.set('event', event.id);
+  if (event.inviteToken) u.searchParams.set('token', event.inviteToken);
   return u.toString();
 }
 
@@ -166,7 +167,7 @@ export const EventDetailScreen = ({
 
   const handleInvite = React.useCallback(async () => {
     if (!event) return;
-    const link = buildEventLink(event.id);
+    const link = buildEventLink(event);
     const shareTitle = `Triploo — ${event.name}`;
     const shareText = `Rejoins le palmarès « ${event.name} » sur Triploo.`;
     try {
