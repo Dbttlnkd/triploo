@@ -4,6 +4,7 @@ import { I18N, TEAM_COLORS, Icon, currentScore } from './app-state.jsx';
 import {
   Mono, Eyebrow, Display, PillBtn, Boule, Card, ScreenHeader,
 } from './ui-kit.jsx';
+import { fetchEventMembers } from './lib/auth.js';
 
 function TrashButton({ onClick, color = '#949494', label = 'Supprimer la partie' }) {
   return (
@@ -319,10 +320,42 @@ const CreateScreen = ({
   const [name, setName] = React.useState(defaultName);
   const [place, setPlace] = React.useState('');
   const [placeBusy, setPlaceBusy] = React.useState(false);
-  const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: [''] });
-  const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: [''] });
+  const [teamA, setTeamA] = React.useState({ name: 'Les Mistraliens', color: 'mint', players: [''], playerUserIds: [null] });
+  const [teamB, setTeamB] = React.useState({ name: 'Ocre Boys', color: 'violet', players: [''], playerUserIds: [null] });
   const [eventId, setEventId] = React.useState(defaultEventId);
+  const [eventMembers, setEventMembers] = React.useState([]);
   const liveEvents = React.useMemo(() => events.filter((e) => e.status === 'live'), [events]);
+
+  React.useEffect(() => {
+    if (!eventId) { setEventMembers([]); return undefined; }
+    let cancelled = false;
+    fetchEventMembers(eventId)
+      .then((m) => { if (!cancelled) setEventMembers(m); })
+      .catch(() => { if (!cancelled) setEventMembers([]); });
+    return () => { cancelled = true; };
+  }, [eventId]);
+
+  const mergedSuggestions = React.useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const m of eventMembers) {
+      const label = (m.displayName || '').trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name: label, userId: m.userId, isMember: true });
+    }
+    for (const n of playerSuggestions) {
+      const label = (n || '').trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name: label, userId: null, isMember: false });
+    }
+    return out;
+  }, [eventMembers, playerSuggestions]);
 
   React.useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
@@ -352,11 +385,21 @@ const CreateScreen = ({
     return () => { cancelled = true; };
   }, []);
 
+  const buildTeamPlayers = (team) => {
+    const out = [];
+    (team.players || []).forEach((rawName, i) => {
+      const trimmed = (rawName || '').trim();
+      if (!trimmed) return;
+      out.push({ name: trimmed, userId: team.playerUserIds?.[i] || null });
+    });
+    return out;
+  };
+
   const handleLaunch = () => {
-    const pa = teamA.players.map((p) => p.trim()).filter(Boolean);
-    const pb = teamB.players.map((p) => p.trim()).filter(Boolean);
-    const safePa = pa.length ? pa : ['Joueur 1'];
-    const safePb = pb.length ? pb : ['Joueur 1'];
+    const pa = buildTeamPlayers(teamA);
+    const pb = buildTeamPlayers(teamB);
+    const safePa = pa.length ? pa : [{ name: 'Joueur 1', userId: null }];
+    const safePb = pb.length ? pb : [{ name: 'Joueur 1', userId: null }];
     onCreate?.({
       name: name.trim() || 'Partie',
       place: place.trim(),
@@ -427,11 +470,11 @@ const CreateScreen = ({
         <section>
           <Mono color="#949494" size={10} tracking="1.5px">Équipes</Mono>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-            <TeamCard team={teamA} onChange={setTeamA} accent="A" suggestions={playerSuggestions}/>
+            <TeamCard team={teamA} onChange={setTeamA} accent="A" suggestions={mergedSuggestions}/>
             <div style={{ textAlign: 'center' }}>
               <Mono color="#5200ff" size={11} tracking="1.8px" weight={700}>VS</Mono>
             </div>
-            <TeamCard team={teamB} onChange={setTeamB} accent="B" suggestions={playerSuggestions}/>
+            <TeamCard team={teamB} onChange={setTeamB} accent="B" suggestions={mergedSuggestions}/>
           </div>
         </section>
 
@@ -498,7 +541,9 @@ const CreateScreen = ({
   );
 };
 
-function PlayerInput({ value, onChange, placeholder, suggestions, color }) {
+function PlayerInput({ value, userId, onChange, placeholder, suggestions, color }) {
+  // suggestions: Array<{ name: string, userId?: string|null, isMember?: boolean }>
+  // onChange(name, userId): caller stores both halves
   const [open, setOpen] = React.useState(false);
   const wrapperRef = React.useRef(null);
 
@@ -507,8 +552,8 @@ function PlayerInput({ value, onChange, placeholder, suggestions, color }) {
     const used = new Set();
     const list = [];
     for (const s of suggestions) {
-      if (!s) continue;
-      const k = s.toLowerCase();
+      if (!s?.name) continue;
+      const k = s.name.toLowerCase();
       if (used.has(k)) continue;
       if (q && !k.includes(q)) continue;
       used.add(k);
@@ -531,14 +576,24 @@ function PlayerInput({ value, onChange, placeholder, suggestions, color }) {
     };
   }, [open]);
 
-  const exactExisting = filtered.some((s) => s.toLowerCase() === (value || '').trim().toLowerCase());
+  const exactExisting = filtered.some((s) => s.name.toLowerCase() === (value || '').trim().toLowerCase());
   const showCreateHint = open && (value || '').trim().length > 0 && !exactExisting;
+  const hasLink = Boolean(userId);
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+    <div ref={wrapperRef} style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+      {hasLink && (
+        <span
+          title="Joueur lié à un compte"
+          style={{
+            flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: '#3cffd0',
+            display: 'inline-block',
+          }}
+        />
+      )}
       <input
         value={value}
-        onChange={(e) => { onChange(e.target.value); if (!open) setOpen(true); }}
+        onChange={(e) => { onChange(e.target.value, null); if (!open) setOpen(true); }}
         onFocus={() => setOpen(true)}
         placeholder={placeholder}
         autoComplete="off"
@@ -558,18 +613,26 @@ function PlayerInput({ value, onChange, placeholder, suggestions, color }) {
         }}>
           {filtered.map((s) => (
             <button
-              key={s}
+              key={s.name + (s.userId || '')}
               type="button"
-              onMouseDown={(e) => { e.preventDefault(); onChange(s); setOpen(false); }}
+              onMouseDown={(e) => { e.preventDefault(); onChange(s.name, s.userId || null); setOpen(false); }}
               style={{
-                display: 'block', width: '100%', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
                 background: 'transparent', border: 0, color: '#fff',
                 padding: '8px 10px', cursor: 'pointer', borderRadius: 8,
                 fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(60,255,208,0.12)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            >{s}</button>
+            >
+              {s.isMember && (
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3cffd0', flexShrink: 0 }}/>
+              )}
+              <span>{s.name}</span>
+              {s.isMember && (
+                <span style={{ marginLeft: 'auto', color: '#3cffd0', fontSize: 9, letterSpacing: '1.2px' }}>MEMBRE</span>
+              )}
+            </button>
           ))}
           {showCreateHint && (
             <div style={{
@@ -590,19 +653,30 @@ const TeamCard = ({ team, onChange, accent, suggestions = [] }) => {
   const c = TEAM_COLORS[team.color];
   const minPlayers = MIN_PLAYERS_PER_TEAM;
   const maxPlayers = MAX_PLAYERS_PER_TEAM;
+  const playerUserIds = team.playerUserIds || team.players.map(() => null);
   const setName = (v) => onChange({ ...team, name: v });
-  const setPlayer = (idx, v) => {
+  const setPlayer = (idx, name, userId) => {
     const players = [...team.players];
-    players[idx] = v;
-    onChange({ ...team, players });
+    const uids = [...playerUserIds];
+    players[idx] = name;
+    uids[idx] = userId || null;
+    onChange({ ...team, players, playerUserIds: uids });
   };
   const addPlayer = () => {
     if (team.players.length >= maxPlayers) return;
-    onChange({ ...team, players: [...team.players, ''] });
+    onChange({
+      ...team,
+      players: [...team.players, ''],
+      playerUserIds: [...playerUserIds, null],
+    });
   };
   const removePlayer = (idx) => {
     if (team.players.length <= minPlayers) return;
-    onChange({ ...team, players: team.players.filter((_, i) => i !== idx) });
+    onChange({
+      ...team,
+      players: team.players.filter((_, i) => i !== idx),
+      playerUserIds: playerUserIds.filter((_, i) => i !== idx),
+    });
   };
   return (
     <div style={{
@@ -639,7 +713,8 @@ const TeamCard = ({ team, onChange, accent, suggestions = [] }) => {
             <Icon name="user" size={11} color={c.fg}/>
             <PlayerInput
               value={p}
-              onChange={(v) => setPlayer(i, v)}
+              userId={playerUserIds[i]}
+              onChange={(name, userId) => setPlayer(i, name, userId)}
               placeholder={`Joueur ${i + 1}`}
               suggestions={suggestions}
               color={c.fg}
@@ -698,14 +773,16 @@ function aggregatePlayerStats(games) {
     g.teams.forEach((team, i) => {
       const isWinning = team.id === g.winner;
       const teamPoints = Array.isArray(g.finalScore) ? (g.finalScore[i] || 0) : 0;
-      for (const playerName of team.players || []) {
-        const name = (playerName || '').trim();
+      const refs = team.playerRefs || (team.players || []).map((n) => ({ name: n, userId: null }));
+      for (const ref of refs) {
+        const name = (ref.name || '').trim();
         if (!name) continue;
 
-        if (!map.has(name)) map.set(name, { name, played: 0, wins: 0, points: 0 });
+        if (!map.has(name)) map.set(name, { name, played: 0, wins: 0, points: 0, userIds: new Set() });
         const s = map.get(name);
         s.played += 1;
         s.points += teamPoints;
+        if (ref.userId) s.userIds.add(ref.userId);
         if (isWinning) {
           s.wins += 1;
           const next = (streak.get(name) || 0) + 1;
@@ -722,6 +799,7 @@ function aggregatePlayerStats(games) {
     ...s,
     ratio: s.played ? Math.round((s.wins / s.played) * 100) : 0,
     bestStreak: bestStreak.get(s.name) || 0,
+    userIds: Array.from(s.userIds),
   }));
   rows.sort((a, b) =>
     (b.ratio - a.ratio) ||
@@ -732,8 +810,41 @@ function aggregatePlayerStats(games) {
   return rows;
 }
 
-const StatsScreen = ({ games = [] }) => {
+function computePersonalStats(games, myUserId) {
+  if (!myUserId) return null;
+  const finished = games
+    .filter((g) => g.status === 'archived' && g.winner)
+    .sort((a, b) => gameDateValue(a) - gameDateValue(b));
+
+  let played = 0;
+  let wins = 0;
+  let streak = 0;
+  let bestStreak = 0;
+
+  for (const g of finished) {
+    let mySide = null;
+    g.teams.forEach((team) => {
+      const refs = team.playerRefs || [];
+      if (refs.some((r) => r.userId === myUserId)) mySide = team.id;
+    });
+    if (!mySide) continue;
+    played += 1;
+    if (mySide === g.winner) {
+      wins += 1;
+      streak += 1;
+      if (streak > bestStreak) bestStreak = streak;
+    } else {
+      streak = 0;
+    }
+  }
+
+  if (!played) return null;
+  return { played, wins, ratio: Math.round((wins / played) * 100), bestStreak };
+}
+
+const StatsScreen = ({ games = [], myUserId = null }) => {
   const stats = React.useMemo(() => aggregatePlayerStats(games), [games]);
+  const personal = React.useMemo(() => computePersonalStats(games, myUserId), [games, myUserId]);
   const totalGames = games.length;
   const finished = games.filter((g) => g.status === 'archived').length;
   const live = games.filter((g) => g.status === 'live').length;
@@ -758,6 +869,31 @@ const StatsScreen = ({ games = [] }) => {
       <ScreenHeader kicker="STATS" title="Le palmarès."/>
 
       <div style={{ padding: '14px 18px 24px' }}>
+        {personal && (
+          <div style={{
+            background: 'var(--canvas-black)', border: '1px solid #3cffd0',
+            borderRadius: 24, padding: 22, marginBottom: 14,
+          }}>
+            <Mono color="#3cffd0" size={10} tracking="1.5px">
+              TON BILAN · {personal.played} PARTIE{personal.played > 1 ? 'S' : ''}
+            </Mono>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 14 }}>
+              <div>
+                <Display size={48}>{personal.wins}</Display>
+                <Mono color="#fff" size={11} tracking="1.5px" weight={700}>VICTOIRES</Mono>
+              </div>
+              <div>
+                <Display size={48} color={personal.ratio >= 60 ? '#3cffd0' : '#fff'}>{personal.ratio}%</Display>
+                <Mono color="#fff" size={11} tracking="1.5px" weight={700}>RATIO</Mono>
+              </div>
+              <div>
+                <Display size={48}>{personal.bestStreak}</Display>
+                <Mono color="#fff" size={11} tracking="1.5px" weight={700}>SÉRIE MAX</Mono>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ background: '#ffec3b', color: '#000', borderRadius: 24, padding: 22, marginBottom: 14 }}>
           <Mono color="rgba(0,0,0,0.65)" size={10} tracking="1.5px">
             VOS PARTIES · {totalGames}
@@ -804,7 +940,12 @@ const StatsScreen = ({ games = [] }) => {
                   {i + 1}
                 </div>
                 <div>
-                  <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {p.userIds.length > 0 && (
+                      <span title="Joueur lié à un compte" style={{ width: 7, height: 7, borderRadius: '50%', background: '#3cffd0', flexShrink: 0 }}/>
+                    )}
+                    <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</div>
+                  </div>
                   {p.bestStreak >= 2 && (
                     <Mono color="#949494" size={9} tracking="1.5px" weight={500}>
                       MEILLEURE SÉRIE · {p.bestStreak}
