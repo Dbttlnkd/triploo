@@ -911,18 +911,30 @@ const StatsScreen = ({ games = [], myUserId = null }) => {
             <Mono color="#3cffd0" size={10} tracking="1.5px">
               TON BILAN · {personal.played} PARTIE{personal.played > 1 ? 'S' : ''}
             </Mono>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 14 }}>
-              <div>
-                <Display size={48}>{personal.wins}</Display>
-                <Mono color="#fff" size={11} tracking="1.5px" weight={700}>VICTOIRES</Mono>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 14 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'block', lineHeight: 0.95 }}>
+                  <Display size={36}>{personal.wins}</Display>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <Mono color="#fff" size={10} tracking="1.4px" weight={700}>VICTOIRES</Mono>
+                </div>
               </div>
-              <div>
-                <Display size={48} color={personal.ratio >= 60 ? '#3cffd0' : '#fff'}>{personal.ratio}%</Display>
-                <Mono color="#fff" size={11} tracking="1.5px" weight={700}>RATIO</Mono>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'block', lineHeight: 0.95 }}>
+                  <Display size={36} color={personal.ratio >= 60 ? '#3cffd0' : '#fff'}>{personal.ratio}%</Display>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <Mono color="#fff" size={10} tracking="1.4px" weight={700}>RATIO</Mono>
+                </div>
               </div>
-              <div>
-                <Display size={48}>{personal.bestStreak}</Display>
-                <Mono color="#fff" size={11} tracking="1.5px" weight={700}>SÉRIE MAX</Mono>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'block', lineHeight: 0.95 }}>
+                  <Display size={36}>{personal.bestStreak}</Display>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <Mono color="#fff" size={10} tracking="1.4px" weight={700}>SÉRIE MAX</Mono>
+                </div>
               </div>
             </div>
           </div>
@@ -933,13 +945,21 @@ const StatsScreen = ({ games = [], myUserId = null }) => {
             VOS PARTIES · {totalGames}
           </Mono>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-            <div>
-              <Display size={64}>{finished}</Display>
-              <Mono color="#000" size={11} tracking="1.5px" weight={700}>TERMINÉES</Mono>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'block', lineHeight: 0.95 }}>
+                <Display size={56}>{finished}</Display>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <Mono color="#000" size={11} tracking="1.5px" weight={700}>TERMINÉES</Mono>
+              </div>
             </div>
-            <div>
-              <Display size={64}>{live}</Display>
-              <Mono color="#000" size={11} tracking="1.5px" weight={700}>EN COURS</Mono>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'block', lineHeight: 0.95 }}>
+                <Display size={56}>{live}</Display>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <Mono color="#000" size={11} tracking="1.5px" weight={700}>EN COURS</Mono>
+              </div>
             </div>
           </div>
           {bestStreakRow && bestStreakRow.bestStreak >= 2 && (

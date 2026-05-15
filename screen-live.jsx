@@ -228,7 +228,7 @@ const TeamPanel = ({ team, score, target, isLeading, flipped, rounds, allRounds,
           }}>
             <div style={{
               fontFamily: 'var(--font-display)', fontWeight: 900,
-              fontSize: 168, lineHeight: 0.85, letterSpacing: '-2px',
+              fontSize: 'clamp(96px, 30vw, 168px)', lineHeight: 0.85, letterSpacing: '-2px',
               color: c.fg,
             }}>{score}</div>
             <div style={{
@@ -324,7 +324,10 @@ const EndScreen = ({ game, rounds, score, onBack }) => {
   const fanny = lScore === 0;
 
   return (
-    <div style={{ background: wColor.bg, color: wColor.fg, minHeight: '100%', padding: '20px 18px 24px' }}>
+    <div style={{
+      background: wColor.bg, color: wColor.fg, minHeight: '100%',
+      padding: 'calc(20px + env(safe-area-inset-top)) 18px 24px',
+    }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <Mono color={wColor.fg} size={10} tracking="1.5px" weight={500}>FIN · {rounds.length} MÈNES</Mono>
       </div>
@@ -334,15 +337,31 @@ const EndScreen = ({ game, rounds, score, onBack }) => {
           VICTOIRE
         </Mono>
         <div style={{
-          fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 900,
-          lineHeight: 0.85, marginTop: 10, color: wColor.fg, letterSpacing: '-1px',
+          fontFamily: 'var(--font-display)', fontWeight: 900,
+          fontSize: 'clamp(40px, 12vw, 72px)',
+          lineHeight: 0.92, marginTop: 10, color: wColor.fg, letterSpacing: '-1px',
+          maxWidth: '100%', overflowWrap: 'anywhere', wordBreak: 'break-word',
         }}>{winner.name}</div>
       </div>
 
-      <div style={{ marginTop: 28, display: 'flex', alignItems: 'baseline', gap: 14 }}>
-        <Display size={120} color={wColor.fg} style={{ lineHeight: 0.85 }}>{wScore}</Display>
-        <Display size={48} color={wColor.fg === '#fff' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'}>—</Display>
-        <Display size={120} color={wColor.fg === '#fff' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'} style={{ lineHeight: 0.85 }}>{lScore}</Display>
+      <div style={{
+        marginTop: 28, display: 'flex', alignItems: 'baseline', gap: 'min(14px, 3vw)',
+        maxWidth: '100%', flexWrap: 'nowrap',
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-display)', fontWeight: 900, lineHeight: 0.85,
+          fontSize: 'clamp(64px, 22vw, 120px)', color: wColor.fg, letterSpacing: '-2px',
+        }}>{wScore}</span>
+        <span style={{
+          fontFamily: 'var(--font-display)', fontWeight: 900, lineHeight: 0.85,
+          fontSize: 'clamp(28px, 9vw, 48px)',
+          color: wColor.fg === '#fff' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)',
+        }}>—</span>
+        <span style={{
+          fontFamily: 'var(--font-display)', fontWeight: 900, lineHeight: 0.85,
+          fontSize: 'clamp(64px, 22vw, 120px)', letterSpacing: '-2px',
+          color: wColor.fg === '#fff' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)',
+        }}>{lScore}</span>
       </div>
       <div style={{ marginTop: 8 }}>
         <Mono color={wColor.fg} size={10} tracking="1.5px" weight={500}>

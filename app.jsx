@@ -1010,6 +1010,9 @@ export function App() {
       <main style={{
         width: '100%', maxWidth: 480, margin: '0 auto',
         minHeight: '100dvh',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'calc(72px + env(safe-area-inset-bottom))',
       }}>
         {content}
