@@ -6,6 +6,7 @@ Process the Triploo logo:
 
 Run:
     python3 scripts/process-logo.py <input.png> <output.png> [hex_color]
+    python3 scripts/process-logo.py --icon <input.png> <output.png> <size>
 
 hex_color defaults to #FFFFFF (white).
 """
@@ -42,7 +43,29 @@ def process(in_path, out_path, fg_hex="#FFFFFF"):
     img.save(out_path, "PNG", optimize=True)
     print(f"wrote {out_path} ({w}x{h})")
 
+def make_icon(in_path, out_path, size, padding_ratio=0.18, bg_hex="#070707"):
+    """Build a square PWA icon from a transparent-bg source. Tight-trim,
+    pad to a square with extra room, fill with `bg_hex` (default canvas
+    black), then resize to `size`. Use bg_hex=None to keep transparent."""
+    src = Image.open(in_path).convert("RGBA")
+    bbox = src.getbbox()
+    if bbox:
+        src = src.crop(bbox)
+    w, h = src.size
+    base = max(w, h)
+    pad = int(base * padding_ratio)
+    side = base + pad * 2
+    bg = (0, 0, 0, 0) if bg_hex is None else (*hex_to_rgb(bg_hex), 255)
+    canvas = Image.new("RGBA", (side, side), bg)
+    canvas.paste(src, ((side - w) // 2, (side - h) // 2), src)
+    canvas = canvas.resize((size, size), Image.LANCZOS)
+    canvas.save(out_path, "PNG", optimize=True)
+    print(f"wrote {out_path} ({size}x{size}, bg={bg_hex})")
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 5 and sys.argv[1] == "--icon":
+        make_icon(sys.argv[2], sys.argv[3], int(sys.argv[4]))
+        sys.exit(0)
     if len(sys.argv) < 3:
         print(__doc__)
         sys.exit(1)
