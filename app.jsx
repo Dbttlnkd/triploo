@@ -8,6 +8,7 @@ import {
   fetchMyProfile,
   setMyDisplayName,
   signInWithExistingUsername,
+  requestPasswordReset,
   AnonDisabledError,
 } from './lib/auth.js';
 import {
@@ -133,7 +134,7 @@ function DisplayNamePrompt({ onSubmit, onSwitchToLogin }) {
   );
 }
 
-function LoginPrompt({ onSubmit, onSwitchToSignup }) {
+function LoginPrompt({ onSubmit, onSwitchToSignup, onSwitchToReset }) {
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -217,8 +218,21 @@ function LoginPrompt({ onSubmit, onSwitchToSignup }) {
         >
           {busy ? '…' : 'Se connecter'}
         </button>
-        {onSwitchToSignup && (
-          <div style={{ marginTop: 14, textAlign: 'center' }}>
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          {onSwitchToReset && (
+            <button
+              type="button"
+              onClick={onSwitchToReset}
+              style={{
+                background: 'transparent', border: 0, color: '#949494',
+                fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '1px',
+                textTransform: 'uppercase', cursor: 'pointer', padding: 4,
+              }}
+            >
+              Mot de passe oublié ?
+            </button>
+          )}
+          {onSwitchToSignup && (
             <button
               type="button"
               onClick={onSwitchToSignup}
@@ -230,7 +244,119 @@ function LoginPrompt({ onSubmit, onSwitchToSignup }) {
             >
               Première fois ici
             </button>
-          </div>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ResetPasswordPrompt({ onSubmit, onCancel }) {
+  const [identifier, setIdentifier] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const [sentTo, setSentTo] = React.useState(null);
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    setErr(null);
+    setSentTo(null);
+    if (!identifier.trim()) {
+      setErr('Indique ton pseudo ou ton email.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await onSubmit(identifier.trim());
+      if (result?.target) setSentTo(result.target);
+    } catch (e2) {
+      setErr(e2?.message || String(e2));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{
+      width: '100%', minHeight: '100vh', background: '#070707', color: '#fff',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <form onSubmit={submit} style={{
+        maxWidth: 420, width: '100%', border: '1px solid #309875', borderRadius: 24,
+        padding: '28px 24px',
+      }}>
+        <Mono color="#3cffd0" size={11} tracking="1.5px">MOT DE PASSE OUBLIÉ</Mono>
+        <div style={{ marginTop: 10 }}>
+          <Display size={28} style={{ letterSpacing: '-0.5px' }}>On t'envoie un lien.</Display>
+        </div>
+        {sentTo ? (
+          <>
+            <p style={{ marginTop: 14, color: '#fff', fontSize: 14, lineHeight: 1.55 }}>
+              Email envoyé à <strong>{sentTo}</strong>. Suis le lien pour choisir un nouveau mot de passe.
+            </p>
+            <button
+              type="button"
+              onClick={onCancel}
+              style={{
+                marginTop: 18, width: '100%', padding: '14px 18px', borderRadius: 30, border: '1px solid #fff',
+                background: 'transparent', color: '#fff', fontFamily: 'var(--font-mono)',
+                fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              Retour
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ marginTop: 12, color: '#949494', fontSize: 13, lineHeight: 1.55 }}>
+              Indique ton pseudo (ou ton email de récupération si tu l'as renseigné). On t'envoie un lien pour réinitialiser.
+            </p>
+            <label style={{ display: 'block', marginTop: 18 }}>
+              <Mono color="#949494" size={10} tracking="1.2px">PSEUDO OU EMAIL</Mono>
+              <input
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="alice_42 ou alice@gmail.com"
+                autoFocus
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                style={{
+                  display: 'block', width: '100%', marginTop: 8, padding: '12px 14px',
+                  borderRadius: 12, border: '1px solid #fff', background: '#070707', color: '#fff',
+                  fontSize: 16, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </label>
+            {err && <Mono color="#ff5e5e" size={12} style={{ display: 'block', marginTop: 12, lineHeight: 1.5 }}>{err}</Mono>}
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                marginTop: 18, width: '100%', padding: '14px 18px', borderRadius: 30, border: 0,
+                background: 'var(--jelly-mint)', color: '#000', fontFamily: 'var(--font-mono)',
+                fontSize: 12, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+                cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
+              }}
+            >
+              {busy ? '…' : 'Envoyer le lien'}
+            </button>
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={onCancel}
+                style={{
+                  background: 'transparent', border: 0, color: '#949494',
+                  fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '1px',
+                  textTransform: 'uppercase', cursor: 'pointer', padding: 4,
+                }}
+              >
+                Annuler
+              </button>
+            </div>
+          </>
         )}
       </form>
     </div>
@@ -296,7 +422,7 @@ export function App() {
   const [authReady, setAuthReady] = React.useState(!remote);
   const [authError, setAuthError] = React.useState(null);
   const [myProfile, setMyProfile] = React.useState(null);
-  const [gateMode, setGateMode] = React.useState('signup'); // 'signup' | 'login'
+  const [gateMode, setGateMode] = React.useState('signup'); // 'signup' | 'login' | 'reset'
   const [playerSuggestions, setPlayerSuggestions] = React.useState([]);
   const [loadErr, setLoadErr] = React.useState(null);
   const [pendingDeepLink, setPendingDeepLink] = React.useState(() => {
@@ -394,12 +520,16 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remote, refreshGames, refreshEvents, refreshPlayerSuggestions]);
 
-  // Auth state change listener: refresh when the session changes (rare in
-  // this app, but useful if/when we add an "upgrade to username" flow).
+  // Auth state change listener: refresh when the session changes and, if the
+  // browser just consumed a password-recovery link, send the user straight
+  // to the Account screen so they can pick a new password.
   React.useEffect(() => {
     if (!remote) return undefined;
     const sb = getSupabase();
-    const { data: { subscription } } = sb.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setRoute({ name: 'account' });
+      }
       refreshGames();
       refreshEvents();
     });
@@ -824,6 +954,14 @@ export function App() {
   }
 
   if (remote && myProfile && !((myProfile.display_name || '').trim())) {
+    if (gateMode === 'reset') {
+      return (
+        <ResetPasswordPrompt
+          onSubmit={(id) => requestPasswordReset(id)}
+          onCancel={() => setGateMode('login')}
+        />
+      );
+    }
     if (gateMode === 'login') {
       return (
         <LoginPrompt
@@ -836,6 +974,7 @@ export function App() {
             refreshEvents();
           }}
           onSwitchToSignup={() => setGateMode('signup')}
+          onSwitchToReset={() => setGateMode('reset')}
         />
       );
     }
