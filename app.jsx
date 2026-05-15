@@ -1,7 +1,8 @@
 // Triploo — App root: routing, screen orchestration, Supabase
 import React from 'react';
 import { DEMO_GAMES } from './app-state.jsx';
-import { isSupabaseConfigured } from './lib/supabase.js';
+import { isSupabaseConfigured, getSupabase } from './lib/supabase.js';
+import { ensureSession, joinEventByToken, AnonDisabledError } from './lib/auth.js';
 import {
   fetchGames,
   fetchPlayerNames,
@@ -91,6 +92,8 @@ export function App() {
   const [events, setEvents] = React.useState([]);
   const [eventsLoaded, setEventsLoaded] = React.useState(false);
   const [gamesLoaded, setGamesLoaded] = React.useState(!remote);
+  const [authReady, setAuthReady] = React.useState(!remote);
+  const [authError, setAuthError] = React.useState(null);
   const [playerSuggestions, setPlayerSuggestions] = React.useState([]);
   const [loadErr, setLoadErr] = React.useState(null);
   const [pendingDeepLink, setPendingDeepLink] = React.useState(() => {
@@ -98,7 +101,8 @@ export function App() {
     const p = new URLSearchParams(window.location.search);
     const ev = p.get('event');
     const gm = p.get('game');
-    if (ev) return { type: 'event', id: ev };
+    const tk = p.get('token');
+    if (ev) return { type: 'event', id: ev, token: tk };
     if (gm) return { type: 'game', id: gm };
     return null;
   });
@@ -135,12 +139,60 @@ export function App() {
     }
   }, [remote]);
 
+  // Auth boot: anonymous Supabase session + opportunistic join_event if the
+  // landing URL carries an invite token.
   React.useEffect(() => {
-    if (!remote) return;
-    refreshGames();
-    refreshEvents();
-    refreshPlayerSuggestions();
+    if (!remote) return undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await ensureSession();
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof AnonDisabledError) {
+          setAuthError("Active « Anonymous Sign-Ins » dans Supabase → Authentication → Providers.");
+        } else {
+          setAuthError(e?.message || String(e));
+        }
+        return;
+      }
+
+      // Try to redeem the invite token before loading lists so the joined
+      // event shows up in the very first fetchEvents() roundtrip.
+      if (pendingDeepLink?.type === 'event' && pendingDeepLink.token) {
+        try {
+          await joinEventByToken(pendingDeepLink.token);
+        } catch (e) {
+          // Bad token = the visitor still lands; they just won't see the
+          // event. Surface the error in the toast slot for visibility.
+          setLoadErr("Lien d'invitation invalide ou expiré.");
+        }
+      }
+
+      if (cancelled) return;
+      setAuthReady(true);
+      refreshGames();
+      refreshEvents();
+      refreshPlayerSuggestions();
+    })();
+
+    return () => { cancelled = true; };
+    // pendingDeepLink intentionally not in deps: this runs once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remote, refreshGames, refreshEvents, refreshPlayerSuggestions]);
+
+  // Auth state change listener: refresh when the session changes (rare in
+  // this app, but useful if/when we add an "upgrade to username" flow).
+  React.useEffect(() => {
+    if (!remote) return undefined;
+    const sb = getSupabase();
+    const { data: { subscription } } = sb.auth.onAuthStateChange(() => {
+      refreshGames();
+      refreshEvents();
+    });
+    return () => subscription?.unsubscribe?.();
+  }, [remote, refreshGames, refreshEvents]);
 
   React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
 
@@ -481,6 +533,42 @@ export function App() {
       break;
     default:
       content = <HomeScreen games={displayGames} onOpen={() => {}} onNew={() => {}} lang={LANG}/>;
+  }
+
+  if (remote && authError) {
+    return (
+      <div style={{
+        width: '100%', minHeight: '100vh', background: '#070707', color: '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      }}>
+        <div style={{
+          maxWidth: 420, border: '1px solid #5200ff', borderRadius: 24,
+          padding: '28px 24px', textAlign: 'left',
+        }}>
+          <Mono color="#ff7a7a" size={11} tracking="1.5px">CONNEXION IMPOSSIBLE</Mono>
+          <div style={{ marginTop: 12 }}>
+            <Display size={28}>Auth requise.</Display>
+          </div>
+          <p style={{ marginTop: 14, color: '#949494', fontSize: 14, lineHeight: 1.55 }}>
+            {authError}
+          </p>
+          <p style={{ marginTop: 12, color: '#949494', fontSize: 13, lineHeight: 1.5 }}>
+            Triploo s'appuie sur des sessions Supabase anonymes pour que chaque utilisateur ne voie que ses propres parties.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (remote && !authReady) {
+    return (
+      <div style={{
+        width: '100%', minHeight: '100vh', background: '#070707',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Mono color="#3cffd0" size={11} tracking="1.9px">CONNEXION…</Mono>
+      </div>
+    );
   }
 
   return (
