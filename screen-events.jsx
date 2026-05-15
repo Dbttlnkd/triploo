@@ -150,9 +150,46 @@ function TrashIcon({ color = '#949494' }) {
   );
 }
 
+function buildEventLink(eventId) {
+  if (typeof window === 'undefined') return '';
+  const u = new URL(window.location.href);
+  u.search = '';
+  u.hash = '';
+  u.searchParams.set('event', eventId);
+  return u.toString();
+}
+
 export const EventDetailScreen = ({
   event, games, onBack, onAddGame, onOpenGame, onDeleteGame, onFinishEvent, onDeleteEvent,
 }) => {
+  const [inviteToast, setInviteToast] = React.useState(null);
+
+  const handleInvite = React.useCallback(async () => {
+    if (!event) return;
+    const link = buildEventLink(event.id);
+    const shareTitle = `Triploo — ${event.name}`;
+    const shareText = `Rejoins le palmarès « ${event.name} » sur Triploo.`;
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({ title: shareTitle, text: shareText, url: link });
+        return;
+      }
+    } catch {
+      // user cancelled native share — fall through to clipboard
+    }
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+        setInviteToast('Lien copié dans le presse-papier.');
+        setTimeout(() => setInviteToast(null), 2400);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    setInviteToast(link);
+  }, [event]);
+
   if (!event) return null;
   const live = games.filter((g) => g.status === 'live');
   const archived = games.filter((g) => g.status === 'archived');
@@ -161,18 +198,46 @@ export const EventDetailScreen = ({
   const totalGames = games.length;
 
   return (
-    <div style={{ background: 'var(--canvas-black)', minHeight: '100%' }}>
+    <div style={{ background: 'var(--canvas-black)', minHeight: '100%', position: 'relative' }}>
       <ScreenHeader
         kicker={event.status === 'live' ? 'ÉVÉNEMENT · EN COURS' : 'ÉVÉNEMENT · TERMINÉ'}
         title={event.name}
         onBack={onBack}
       />
+      {inviteToast && (
+        <div style={{
+          position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 60,
+          background: '#3cffd0', color: '#000', padding: '10px 16px', borderRadius: 12,
+          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '1px',
+          maxWidth: 'calc(100% - 32px)', textAlign: 'center', wordBreak: 'break-word',
+        }}>{inviteToast}</div>
+      )}
       <div style={{ padding: '14px 18px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {event.place && (
-          <Mono color="#949494" size={10} tracking="1.5px" weight={500}>
-            {event.place.toUpperCase()}
-          </Mono>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          {event.place ? (
+            <Mono color="#949494" size={10} tracking="1.5px" weight={500}>
+              {event.place.toUpperCase()}
+            </Mono>
+          ) : <span/>}
+          <button
+            type="button"
+            onClick={handleInvite}
+            style={{
+              background: 'transparent', border: '1px solid #3cffd0', color: '#3cffd0',
+              borderRadius: 40, padding: '8px 14px', cursor: 'pointer',
+              fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+              letterSpacing: '1.4px', textTransform: 'uppercase',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/>
+              <line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/>
+            </svg>
+            Inviter
+          </button>
+        </div>
 
         {/* Summary tile */}
         <div style={{ background: '#ffec3b', color: '#000', borderRadius: 24, padding: 22 }}>
